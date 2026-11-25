@@ -1,0 +1,3372 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrintCalc 3D PRO — Kalkulator Wyceny i Sprzedaży Wydruków 3D</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JSZip for .3mf / .gcode.3mf archive extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Range Slider Styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #f97316;
+      border: 3px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28);
+      margin-top: -6px;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.12);
+      background: #ea580c;
+    }
+    input[type="range"]::-moz-range-thumb {
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #f97316;
+      border: 3px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28);
+    }
+
+    /* Clean Number Inputs */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    /* Color Input Swatch */
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      border: none;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    input[type="color"]::-webkit-color-swatch {
+      border: 2px solid rgba(15, 23, 42, 0.15);
+      border-radius: 9999px;
+    }
+
+    /* Tooltips */
+    .tooltip-popover {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(4px);
+      transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+    }
+    .tooltip-group:hover .tooltip-popover,
+    .tooltip-group:focus-within .tooltip-popover,
+    .tooltip-group.active .tooltip-popover {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    /* Interactive Donut Chart */
+    .donut-slice {
+      transition: stroke-width 0.2s ease, filter 0.2s ease;
+      cursor: pointer;
+    }
+    .donut-slice:hover,
+    .donut-slice.is-active {
+      stroke-width: 21;
+      filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.18));
+    }
+
+    /* Drag & Drop Active State */
+    .dropzone-active {
+      border-color: #f97316 !important;
+      background-color: #fff7ed !important;
+      transform: scale(1.005);
+    }
+
+    /* Dedicated A4 PDF Print Stylesheet */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 14mm 15mm;
+      }
+      body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      body * {
+        visibility: hidden;
+      }
+      #print-offer-sheet,
+      #print-offer-sheet * {
+        visibility: visible;
+      }
+      #print-offer-sheet {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        padding: 0;
+        margin: 0;
+      }
+      .print-no-break {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100/80 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- ===================================================================== -->
+  <!-- DEDICATED A4 PDF CLIENT OFFER SHEET (Visible only when printing)      -->
+  <!-- ===================================================================== -->
+  <div id="print-offer-sheet" class="hidden">
+    <div class="w-full max-w-4xl mx-auto bg-white text-slate-900">
+      <!-- Top Brand & Document Metadata Header -->
+      <div class="flex items-start justify-between gap-6 pb-5 border-b-2 border-slate-900">
+        <div class="flex items-center gap-4">
+          <div id="print-logo-container" class="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0"></div>
+          <div>
+            <h1 id="print-brand-name" class="text-xl font-extrabold tracking-tight text-slate-900">PrintCalc 3D Studio</h1>
+            <p id="print-brand-tagline" class="text-xs text-slate-500 mt-0.5">Profesjonalny druk 3D i prototypowanie na zamówienie</p>
+            <p id="print-brand-contact" class="text-[11px] text-slate-700 mt-1.5 font-medium"></p>
+          </div>
+        </div>
+        <div class="text-right shrink-0">
+          <span class="inline-block px-3 py-1 rounded-md bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider">
+            Oferta handlowa
+          </span>
+          <p id="print-offer-number" class="text-sm font-bold text-slate-900 mt-2">Nr: OF/2026/001</p>
+          <p id="print-offer-date" class="text-xs text-slate-500 mt-0.5"></p>
+        </div>
+      </div>
+
+      <!-- Client & Delivery Info Row -->
+      <div class="grid grid-cols-2 gap-6 py-4 border-b border-slate-200 text-xs">
+        <div>
+          <span class="uppercase tracking-wider text-[10px] font-bold text-slate-400 block mb-1">Nabywca / Zamawiający</span>
+          <p id="print-client-info" class="text-sm font-semibold text-slate-900 whitespace-pre-line">Klient indywidualny / firmowy</p>
+        </div>
+        <div class="text-right">
+          <span class="uppercase tracking-wider text-[10px] font-bold text-slate-400 block mb-1">Warunki realizacji</span>
+          <p class="text-slate-700">Szacowany termin: <strong id="print-delivery-time" class="text-slate-900">3–5 dni roboczych</strong></p>
+          <p id="print-tax-status" class="text-slate-600 mt-0.5">Ceny zawierają podatek VAT 23%</p>
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <div class="mt-5">
+        <table class="w-full border-collapse text-left text-xs">
+          <thead>
+            <tr class="bg-slate-900 text-white">
+              <th class="py-2.5 px-3 font-semibold w-10">Lp.</th>
+              <th id="print-thumb-col-header" class="py-2.5 px-2 font-semibold w-16">Podgląd</th>
+              <th class="py-2.5 px-3 font-semibold">Nazwa detalu i specyfikacja materiału</th>
+              <th class="py-2.5 px-3 font-semibold text-center w-16">Ilość</th>
+              <th id="print-unit-price-header" class="py-2.5 px-3 font-semibold text-right w-28">Cena jedn.</th>
+              <th id="print-total-price-header" class="py-2.5 px-3 font-semibold text-right w-32">Wartość</th>
+            </tr>
+          </thead>
+          <tbody id="print-items-tbody" class="divide-y divide-slate-200 border-b border-slate-300">
+            <!-- Populated dynamically before window.print() -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Summary Totals Box -->
+      <div class="mt-5 flex justify-end print-no-break">
+        <div class="w-72 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs">
+          <div id="print-summary-net-row" class="flex justify-between text-slate-600">
+            <span>Razem netto:</span>
+            <strong id="print-summary-net" class="text-slate-900">0,00 zł</strong>
+          </div>
+          <div id="print-summary-vat-row" class="flex justify-between text-slate-600">
+            <span>Podatek VAT:</span>
+            <strong id="print-summary-vat" class="text-slate-900">0,00 zł</strong>
+          </div>
+          <div class="flex justify-between items-baseline pt-2 border-t border-slate-300 text-sm font-extrabold text-slate-900">
+            <span id="print-summary-final-label">DO ZAPŁATY BRUTTO:</span>
+            <span id="print-summary-gross" class="text-base">0,00 zł</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes & Legal Footer -->
+      <div id="print-notes-box" class="mt-6 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 print-no-break">
+        <span class="font-bold text-slate-900 block mb-1">Uwagi do zamówienia:</span>
+        <p id="print-notes-text" class="whitespace-pre-line"></p>
+      </div>
+
+      <div class="mt-8 pt-3 border-t border-slate-200 flex justify-between text-[10px] text-slate-400">
+        <span>Wycena obejmuje przygotowanie plików do druku, produkcję w technologii 3D, podstawową obróbkę oraz pakowanie.</span>
+        <span>Oferta ważna 14 dni</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" aria-live="polite" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ===================================================================== -->
+  <!-- BRAND & LOGO CUSTOMIZATION MODAL                                      -->
+  <!-- ===================================================================== -->
+  <div id="brand-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-2xl my-auto">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-slate-900 text-orange-400 flex items-center justify-center">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Twoje logo i dane firmy</h3>
+            <p class="text-xs text-slate-500">Widoczne w nagłówku aplikacji oraz na wydrukach ofert PDF A4</p>
+          </div>
+        </div>
+        <button type="button" id="close-brand-modal-x" aria-label="Zamknij" class="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="mt-5 space-y-4">
+        <!-- Logo Preview & Upload -->
+        <div class="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <div id="modal-logo-preview" class="w-20 h-20 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-xs shrink-0"></div>
+          <div class="flex-1 w-full space-y-2 text-center sm:text-left">
+            <div class="text-xs font-semibold text-slate-700">Wgraj plik graficzny z logo (PNG, JPG, WEBP, SVG)</div>
+            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <label for="brand-logo-file" class="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white transition shadow-xs">
+                <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>Wybierz plik logo</span>
+              </label>
+              <input type="file" id="brand-logo-file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" class="hidden" />
+              <button type="button" id="remove-brand-logo-btn" class="px-3 py-2 rounded-xl text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 transition">
+                Usuń logo
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-400">Pliki graficzne są automatycznie optymalizowane i zapisywane w pamięci przeglądarki.</p>
+          </div>
+        </div>
+
+        <!-- Logo Path / URL (Great for GitHub Pages ./logo.png) -->
+        <div>
+          <label for="brand-logo-url" class="block text-xs font-semibold text-slate-700 mb-1">
+            Lub wpisz ścieżkę / URL do logo (np. <code class="bg-slate-100 px-1 rounded">./logo.png</code> dla GitHub Pages)
+          </label>
+          <input type="text" id="brand-logo-url" placeholder="./logo.png lub https://twojadomena.pl/logo.png" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/70 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+        </div>
+
+        <!-- Company / Studio Name -->
+        <div>
+          <label for="brand-name-input" class="block text-xs font-semibold text-slate-700 mb-1">
+            Nazwa Twojego studia / firmy
+          </label>
+          <input type="text" id="brand-name-input" placeholder="np. NovaPrint 3D Studio" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/70 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+        </div>
+
+        <!-- Tagline -->
+        <div>
+          <label for="brand-tagline-input" class="block text-xs font-semibold text-slate-700 mb-1">
+            Podtytuł / specjalizacja
+          </label>
+          <input type="text" id="brand-tagline-input" placeholder="np. Profesjonalny druk 3D FDM / MSLA • Szybkie prototypowanie" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/70 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+        </div>
+
+        <!-- Contact Details -->
+        <div>
+          <label for="brand-contact-input" class="block text-xs font-semibold text-slate-700 mb-1">
+            Dane kontaktowe (e-mail, telefon, WWW, NIP / adres)
+          </label>
+          <input type="text" id="brand-contact-input" placeholder="np. biuro@novaprint3d.pl • tel. +48 500 600 700 • NIP: 123-456-78-90" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/70 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
+        <button type="button" id="cancel-brand-btn" class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition">
+          Anuluj
+        </button>
+        <button type="button" id="save-brand-btn" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-orange-600 hover:bg-orange-500 shadow-sm transition">
+          Zapisz markę i logo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Factory Reset Confirmation Modal -->
+  <div id="reset-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Przywrócić ustawienia fabryczne?</h3>
+          <p class="mt-1 text-sm text-slate-600 leading-relaxed">
+            Wszystkie wprowadzone stawki, ceny filamentów, parametry maszyn oraz zapisane ustawienia domyślne zostaną przywrócone do wartości początkowych.
+          </p>
+        </div>
+      </div>
+      <div class="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
+        <button type="button" id="cancel-reset-btn" class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition">
+          Anuluj
+        </button>
+        <button type="button" id="confirm-reset-btn" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-orange-600 hover:bg-orange-500 shadow-sm transition">
+          Tak, przywróć fabryczne
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- TOP NAVIGATION HEADER                                                 -->
+  <!-- ===================================================================== -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <!-- Brand & Logo -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button type="button" id="header-logo-trigger" title="Kliknij, aby ustawić własne logo i dane firmy" class="group relative w-11 h-11 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-sm shrink-0 overflow-hidden border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <div id="header-logo-content" class="w-full h-full flex items-center justify-center"></div>
+              <span class="absolute inset-0 bg-slate-900/75 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] font-bold uppercase tracking-wider text-white transition">Logo</span>
+            </button>
+            <div>
+              <div class="flex items-center gap-2">
+                <h1 id="header-brand-title" class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">
+                  PrintCalc <span class="text-orange-500">3D</span>
+                </h1>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900 text-orange-400 tracking-wide">
+                  PRO • .3MF / AMS
+                </span>
+              </div>
+              <p id="header-brand-tagline" class="text-xs text-slate-500">Profesjonalny kalkulator wyceny i sprzedaży wydruków 3D</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Global Toolbar: Logo, Save Defaults, Export/Import JSON, Factory Reset -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" id="open-brand-modal-btn" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition">
+            <svg class="w-4 h-4 text-orange-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Twoje logo i firma</span>
+          </button>
+
+          <button type="button" id="save-defaults-btn" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition">
+            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            <span>Zapisz domyślne</span>
+          </button>
+
+          <button type="button" id="export-json-btn" title="Pobierz konfigurację stawek i logo do pliku .json" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition">
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Eksportuj (.json)</span>
+          </button>
+
+          <label for="import-json-input" title="Wczytaj plik ustawień .json" class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition">
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            <span>Importuj (.json)</span>
+          </label>
+          <input type="file" id="import-json-input" accept=".json,application/json" class="hidden" />
+
+          <button type="button" id="reset-factory-btn" title="Przywróć wartości fabryczne" class="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 bg-white hover:bg-rose-50 border border-slate-200 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span class="hidden sm:inline">Reset</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- MAIN TWO-COLUMN WORKSPACE                                             -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7 items-start">
+
+      <!-- =================================================================== -->
+      <!-- LEFT COLUMN: IMPORTER, AMS SLOTS & COST PARAMETERS (7 COLS)         -->
+      <!-- =================================================================== -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- CARD 0: .3MF / .GCODE IMPORTER & PROJECT CARD -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+              Import projektu ze slicera (.3mf / .gcode)
+            </span>
+            <span class="text-[11px] font-medium text-slate-400">Bambu Studio • OrcaSlicer • PrusaSlicer • Cura</span>
+          </div>
+
+          <!-- Drag & Drop Zone -->
+          <div id="slicer-dropzone" role="button" tabindex="0" aria-label="Upuść plik .3mf lub .gcode, aby wczytać parametry" class="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/80 hover:border-slate-900 hover:bg-slate-100/70 p-4 sm:p-5 transition-all text-center">
+            <input type="file" id="slicer-file-input" accept=".3mf,.gcode.3mf,.gcode,.gco,.nc" multiple class="hidden" />
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-3.5">
+              <div class="w-11 h-11 rounded-xl bg-slate-900 text-orange-400 flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <div class="text-center sm:text-left">
+                <p class="text-xs sm:text-sm font-bold text-slate-900">
+                  Przeciągnij plik <span class="text-orange-600">.3mf</span>, <span class="text-orange-600">.gcode.3mf</span> lub <span class="text-orange-600">.gcode</span> tutaj
+                </p>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  Automatycznie odczyta płyty robocze, miniaturkę <code class="bg-slate-200/70 px-1 rounded text-slate-700">plate_1.png</code>, czas druku oraz wszystkie sloty kolorów AMS. Obsługuje także wiele plików naraz!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Imported Model Preview & Multi-Plate Switcher -->
+          <div id="imported-model-card" class="hidden rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3.5">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <!-- Plate Thumbnail Preview -->
+              <div class="relative w-24 h-24 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+                <img id="imported-plate-thumb" src="" alt="Podgląd płyty roboczej" class="w-full h-full object-contain p-1 hidden" />
+                <div id="imported-plate-thumb-fallback" class="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                  <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                    <polyline stroke-linecap="round" stroke-linejoin="round" points="3.27 6.96 12 12.01 20.73 6.96" />
+                    <line stroke-linecap="round" stroke-linejoin="round" x1="12" y1="22.08" x2="12" y2="12" />
+                  </svg>
+                  <span class="text-[9px] font-medium mt-1">Brak podglądu</span>
+                </div>
+              </div>
+
+              <!-- Telemetry Details -->
+              <div class="flex-1 min-w-0 w-full space-y-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span id="imported-filename" class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">projekt.3mf</span>
+                      <span id="imported-slicer-badge" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900 text-orange-400">Bambu Studio</span>
+                    </div>
+                    <p id="imported-printer-meta" class="text-[11px] text-slate-500 mt-0.5"></p>
+                  </div>
+                  <button type="button" id="clear-imported-btn" class="text-[11px] font-semibold text-slate-400 hover:text-rose-600 transition shrink-0">
+                    Zamknij
+                  </button>
+                </div>
+
+                <!-- Telemetry Pills -->
+                <div id="imported-pills" class="flex flex-wrap gap-1.5 text-[11px]"></div>
+              </div>
+            </div>
+
+            <!-- Multi-plate / Multi-file Switcher -->
+            <div id="plates-switcher-wrapper" class="hidden pt-3 border-t border-slate-200 space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-bold text-slate-700">Wykryto kilka płyt roboczych / plików (<span id="plates-count-label">2</span>):</span>
+                <button type="button" id="add-all-plates-to-quote-btn" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-xs transition">
+                  + Dodaj wszystkie płyty do oferty
+                </button>
+              </div>
+              <div id="plates-tabs-container" class="flex flex-wrap gap-1.5"></div>
+            </div>
+          </div>
+
+          <!-- Project / Part Name + Optional Custom Thumbnail Upload for Manual Items -->
+          <div class="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+            <div class="sm:col-span-8">
+              <label for="project-name" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                Nazwa detalu / pozycji w ofercie
+              </label>
+              <input type="text" id="project-name" placeholder="np. Obudowa sterownika CNC / Brelok NFC firmowy" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition" />
+            </div>
+            <div class="sm:col-span-4">
+              <label for="manual-thumb-input" class="cursor-pointer w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center justify-center gap-1.5 transition">
+                <svg class="w-4 h-4 text-orange-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+                <span id="manual-thumb-btn-label">Zdjęcie detalu</span>
+              </label>
+              <input type="file" id="manual-thumb-input" accept="image/png,image/jpeg,image/webp" class="hidden" />
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 1: Materiał, AMS Multi-Material i Czas Druku -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-4 mb-5 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <span class="w-8 h-8 rounded-xl bg-slate-900 text-white text-sm font-bold flex items-center justify-center shrink-0">1</span>
+              <div>
+                <h2 class="text-base sm:text-lg font-bold text-slate-900">Materiał, kolory AMS i czas druku</h2>
+                <p class="text-xs text-slate-500">Baza stawek surowców, tryb wielokolorowy oraz nakład</p>
+              </div>
+            </div>
+
+            <!-- AMS / Multi-Material Toggle Button -->
+            <button type="button" id="toggle-ams-btn" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200">
+              <span class="flex -space-x-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-orange-500 ring-1 ring-white"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 ring-1 ring-white"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1 ring-white"></span>
+              </span>
+              <span id="toggle-ams-label">Tryb wielokolorowy / AMS</span>
+            </button>
+          </div>
+
+          <div class="space-y-5">
+            <!-- Configurable Material Rate Cards (Used both for single-material & auto-pricing AMS slots!) -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Baza materiałów i stawek (kliknij, aby wybrać lub edytuj cenę zł/kg)
+                </label>
+              </div>
+              <div id="material-rates-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <!-- Rendered dynamically by JS -->
+              </div>
+            </div>
+
+            <!-- SINGLE-MATERIAL INPUTS (Shown when AMS mode is OFF) -->
+            <div id="single-material-panel" class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+              <div>
+                <label for="material-price" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Cena wybranego materiału (<span id="unit-price-label">zł / kg</span>)
+                </label>
+                <div class="relative">
+                  <input type="number" id="material-price" min="0" step="0.5" value="75" class="w-full pr-14 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span id="unit-price-badge" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł/kg</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="material-consumption" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Waga / zużycie na 1 szt. (<span id="unit-mass-label">g</span>)
+                </label>
+                <div class="relative">
+                  <input type="number" id="material-consumption" min="0" step="0.1" value="45" class="w-full pr-12 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span id="unit-mass-badge" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">g</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- MULTI-MATERIAL / AMS SLOTS TABLE (Shown when AMS mode is ON or .3mf has multiple filaments) -->
+            <div id="ams-panel" class="hidden rounded-xl border border-slate-200 bg-slate-50/70 overflow-hidden">
+              <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold uppercase tracking-wider text-orange-400">Moduł AMS / Multi-Material</span>
+                  <span class="text-[11px] text-slate-300 hidden sm:inline">(waga zawiera wieżę czyszczącą)</span>
+                </div>
+                <button type="button" id="add-ams-slot-btn" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-400 text-white transition">
+                  + Dodaj slot
+                </button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="bg-slate-100 text-slate-600 border-b border-slate-200">
+                      <th class="py-2 px-3 font-semibold">Slot / Kolor</th>
+                      <th class="py-2 px-2 font-semibold">Materiał</th>
+                      <th class="py-2 px-2 font-semibold text-right">Waga (g)</th>
+                      <th class="py-2 px-2 font-semibold text-right">Cena (zł/kg)</th>
+                      <th class="py-2 px-3 font-semibold text-right">Koszt</th>
+                      <th class="py-2 px-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="ams-slots-tbody" class="divide-y divide-slate-200 bg-white">
+                    <!-- Rendered dynamically by JS -->
+                  </tbody>
+                  <tfoot>
+                    <tr class="bg-slate-100/90 font-bold text-slate-900 border-t border-slate-300">
+                      <td colspan="2" class="py-2.5 px-3">Razem wszystkie sloty (1 szt.):</td>
+                      <td id="ams-total-weight" class="py-2.5 px-2 text-right tabular-nums">0,0 g</td>
+                      <td class="py-2.5 px-2 text-right text-slate-400 font-normal">—</td>
+                      <td id="ams-total-cost" class="py-2.5 px-3 text-right tabular-nums text-orange-600">0,00 zł</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <!-- Print Time & Order Quantity -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Czas druku 1 sztuki (ze slicera)
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="relative">
+                    <input type="number" id="print-hours" min="0" step="1" value="2" aria-label="Godziny druku" class="w-full pr-12 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                    <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">godz.</span>
+                  </div>
+                  <div class="relative">
+                    <input type="number" id="print-minutes" min="0" max="59" step="1" value="30" aria-label="Minuty druku" class="w-full pr-11 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                    <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">min</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label for="order-quantity" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Ilość sztuk w serii
+                </label>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="qty-minus" aria-label="Zmniejsz ilość" class="w-11 h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-bold text-slate-700 transition shrink-0">−</button>
+                  <input type="number" id="order-quantity" min="1" step="1" value="1" class="w-full text-center py-2 px-3 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <button type="button" id="qty-plus" aria-label="Zwiększ ilość" class="w-11 h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-bold text-slate-700 transition shrink-0">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: Drukarka, Energia i Amortyzacja -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
+          <div class="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
+            <span class="w-8 h-8 rounded-xl bg-slate-900 text-white text-sm font-bold flex items-center justify-center shrink-0">2</span>
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">Drukarka, energia i amortyzacja</h2>
+              <p class="text-xs text-slate-500">Presety maszyn, pobór mocy, prąd oraz zużycie eksploatacyjne</p>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Printer Presets -->
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                Szybki wybór profilu drukarki
+              </label>
+              <div id="printer-presets-container" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <!-- Rendered by JS -->
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="printer-wattage" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Średni pobór mocy (W)
+                </label>
+                <div class="relative">
+                  <input type="number" id="printer-wattage" min="0" step="5" value="130" class="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">W</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="electricity-price" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Stawka za prąd (zł / kWh)
+                </label>
+                <div class="relative">
+                  <input type="number" id="electricity-price" min="0" step="0.01" value="1.15" class="w-full pr-16 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł/kWh</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label for="printer-cost" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Wartość drukarki (zł)
+                </label>
+                <div class="relative">
+                  <input type="number" id="printer-cost" min="0" step="50" value="3500" class="w-full pr-9 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="printer-lifespan" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Amortyzacja (godz.)
+                </label>
+                <div class="relative">
+                  <input type="number" id="printer-lifespan" min="1" step="100" value="2500" class="w-full pr-9 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">h</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="maintenance-cost" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Serwis / części (zł/h)
+                </label>
+                <div class="relative">
+                  <input type="number" id="maintenance-cost" min="0" step="0.05" value="0.80" class="w-full pr-12 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł/h</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: Praca ludzka, Post-processing i Dodatki -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
+          <div class="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
+            <span class="w-8 h-8 rounded-xl bg-slate-900 text-white text-sm font-bold flex items-center justify-center shrink-0">3</span>
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">Praca ludzka, obróbka i akcesoria</h2>
+              <p class="text-xs text-slate-500">Przygotowanie pliku, post-processing, tagi NFC, magnesy, inserty i pakowanie</p>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label for="prep-minutes" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Przygotowanie (na serię)
+                </label>
+                <div class="relative">
+                  <input type="number" id="prep-minutes" min="0" step="1" value="10" class="w-full pr-11 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">min</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="post-minutes" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Obróbka / pakow. (1 szt.)
+                </label>
+                <div class="relative">
+                  <input type="number" id="post-minutes" min="0" step="1" value="5" class="w-full pr-11 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">min</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="hourly-rate" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Roboczogodzina (zł/h)
+                </label>
+                <div class="relative">
+                  <input type="number" id="hourly-rate" min="0" step="5" value="60" class="w-full pr-12 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł/h</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Extras & Quick Accessory Adders -->
+            <div>
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                <label for="extras-cost" class="text-xs font-semibold text-slate-700">
+                  Dodatki i opakowanie na 1 szt. (NFC, magnesy, inserty, kółka, karton)
+                </label>
+                <button type="button" id="clear-extras-btn" class="text-[11px] font-semibold text-slate-400 hover:text-rose-600 transition">Wyzeruj</button>
+              </div>
+              <div class="relative">
+                <input type="number" id="extras-cost" min="0" step="0.1" value="1.50" class="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <button type="button" data-add-extra="1.50" class="quick-extra-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ Tag NFC (1,50 zł)</button>
+                <button type="button" data-add-extra="1.00" class="quick-extra-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ Magnes (1,00 zł)</button>
+                <button type="button" data-add-extra="0.80" class="quick-extra-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ Insert M3 (0,80 zł)</button>
+                <button type="button" data-add-extra="1.20" class="quick-extra-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ Brelok kółko (1,20 zł)</button>
+                <button type="button" data-add-extra="2.50" class="quick-extra-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ Kartonik (2,50 zł)</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: Polityka Cenowa, Ochrona Marży, Prowizje i VAT -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
+          <div class="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
+            <span class="w-8 h-8 rounded-xl bg-orange-500 text-white text-sm font-bold flex items-center justify-center shrink-0">4</span>
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">Polityka cenowa, marża, prowizje i VAT</h2>
+              <p class="text-xs text-slate-500">Narzut, minimalna wartość pozycji, rabat ilościowy, Allegro/Etsy oraz stawka VAT</p>
+            </div>
+          </div>
+
+          <div class="space-y-5">
+            <!-- Waste / Scrap Factor & Minimum Order Protection -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label for="failure-rate" class="text-xs font-semibold text-slate-700">
+                    Odpad / ryzyko niepowodzeń (%)
+                  </label>
+                  <span id="waste-mode-hint" class="text-[10px] font-bold text-slate-400">Ręcznie: 5–10%</span>
+                </div>
+                <div class="relative">
+                  <input type="number" id="failure-rate" min="0" max="200" step="1" value="8" class="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">%</span>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <label for="min-order-value" class="text-xs font-semibold text-slate-700">
+                    Minimalna wartość pozycji (zł)
+                  </label>
+                  <div class="tooltip-group relative inline-flex">
+                    <button type="button" aria-label="Informacja o minimalnej wartości" class="tooltip-trigger w-4 h-4 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center">?</button>
+                    <div class="tooltip-popover absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-xl bg-slate-900 text-white text-xs leading-relaxed shadow-xl z-20 pointer-events-none">
+                      <strong>Ochrona marży przy małych wydrukach:</strong> Jeśli wyliczona cena całego nakładu danej pozycji jest niższa niż ten próg (np. 20 zł), kalkulator automatycznie podniesie cenę do ustalonego minimum.
+                    </div>
+                  </div>
+                </div>
+                <div class="relative">
+                  <input type="number" id="min-order-value" min="0" step="1" value="15" class="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">zł</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Markup Slider -->
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <label for="markup-input" class="text-xs sm:text-sm font-bold text-slate-800">
+                  Narzut / Zysk docelowy (%)
+                </label>
+                <div class="relative w-28">
+                  <input type="number" id="markup-input" min="0" max="1000" step="1" value="60" class="w-full pr-7 pl-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-right text-sm font-extrabold text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500/30" />
+                  <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-xs font-bold text-slate-400 pointer-events-none">%</span>
+                </div>
+              </div>
+              <input type="range" id="markup-slider" min="0" max="300" step="1" value="60" aria-label="Suwak narzutu" class="w-full" />
+              <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                <span>0% (Koszt)</span>
+                <span>50%</span>
+                <span>100%</span>
+                <span>200%</span>
+                <span>300%</span>
+              </div>
+            </div>
+
+            <!-- Quantity Discount & Marketplace Commission -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="quantity-discount" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Rabat ilościowy (%)
+                </label>
+                <div class="relative">
+                  <input type="number" id="quantity-discount" min="0" max="90" step="0.5" value="0" class="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">%</span>
+                </div>
+                <div id="discount-suggestion" class="hidden mt-1.5 flex items-center justify-between text-[11px] bg-orange-50 text-orange-800 px-2.5 py-1 rounded-lg border border-orange-200">
+                  <span id="discount-suggestion-text">Sugerowany rabat: 10%</span>
+                  <button type="button" id="apply-discount-suggestion" class="font-bold underline ml-2">Zastosuj</button>
+                </div>
+              </div>
+
+              <div>
+                <label for="commission-rate" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Prowizja platformy (Allegro / Etsy %)
+                </label>
+                <div class="relative">
+                  <input type="number" id="commission-rate" min="0" max="75" step="0.1" value="0" class="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+                  <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-semibold text-slate-400 pointer-events-none">%</span>
+                </div>
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                  <button type="button" data-comm="0" class="comm-preset-btn px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-900 text-white">0%</button>
+                  <button type="button" data-comm="10" class="comm-preset-btn px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Allegro 10%</button>
+                  <button type="button" data-comm="9.5" class="comm-preset-btn px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Etsy 9,5%</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- VAT Mode Selector (23%, 8%, 0%, Bez VAT) -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-2">
+                Stawka VAT / Tryb rozliczenia
+              </label>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button type="button" data-vat="23" class="vat-mode-btn p-2.5 rounded-xl border text-left transition bg-slate-900 text-white border-slate-900">
+                  <div class="text-xs font-bold">VAT 23%</div>
+                  <div class="text-[10px] opacity-80 mt-0.5">Standard B2B/B2C</div>
+                </button>
+                <button type="button" data-vat="8" class="vat-mode-btn p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-left hover:bg-slate-100 transition">
+                  <div class="text-xs font-bold">VAT 8%</div>
+                  <div class="text-[10px] text-slate-500 mt-0.5">Obniżona stawka</div>
+                </button>
+                <button type="button" data-vat="0" class="vat-mode-btn p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-left hover:bg-slate-100 transition">
+                  <div class="text-xs font-bold">VAT 0%</div>
+                  <div class="text-[10px] text-slate-500 mt-0.5">WDT / Eksport</div>
+                </button>
+                <button type="button" data-vat="novat" class="vat-mode-btn p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-left hover:bg-slate-100 transition">
+                  <div class="text-xs font-bold">Bez VAT</div>
+                  <div class="text-[10px] text-slate-500 mt-0.5">Zwolniony / NDG</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- RIGHT COLUMN: LIVE SUMMARY DASHBOARD & MULTI-ITEM QUOTE CART (5)    -->
+      <!-- =================================================================== -->
+      <div id="results-panel" class="lg:col-span-5 lg:sticky lg:top-20 space-y-6">
+
+        <!-- KPI CARDS GRID -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <!-- KPI 1: Unit Customer Price -->
+          <div class="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-slate-800 relative overflow-hidden">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-300">Cena 1 sztuki</span>
+              <span id="kpi-min-badge" class="hidden px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-500 text-white">Min. zlecenie</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2 flex-wrap">
+              <span id="kpi-unit-gross" class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">0,00 zł</span>
+              <span id="kpi-unit-gross-tag" class="text-xs font-medium text-orange-400">brutto</span>
+            </div>
+            <div id="kpi-unit-net-row" class="mt-1 text-xs text-slate-300">
+              Netto: <strong id="kpi-unit-net" class="text-white font-semibold">0,00 zł</strong>
+            </div>
+          </div>
+
+          <!-- KPI 2: Total Series Value -->
+          <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Wartość pozycji</span>
+              <span id="kpi-qty-badge" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800">1 szt.</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2 flex-wrap">
+              <span id="kpi-total-gross" class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">0,00 zł</span>
+              <span id="kpi-total-gross-tag" class="text-xs font-medium text-slate-500">brutto</span>
+            </div>
+            <div id="kpi-total-net-row" class="mt-1 text-xs text-slate-500">
+              Netto: <strong id="kpi-total-net" class="text-slate-800 font-semibold">0,00 zł</strong>
+            </div>
+          </div>
+
+          <!-- KPI 3: Total Production Cost -->
+          <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Koszt własny</span>
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800">Próg 0%</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2 flex-wrap">
+              <span id="kpi-total-cost" class="text-2xl font-extrabold tracking-tight text-slate-900">0,00 zł</span>
+            </div>
+            <div class="mt-1 text-xs text-slate-500">
+              1 szt.: <strong id="kpi-unit-cost" class="text-slate-800 font-semibold">0,00 zł</strong>
+            </div>
+          </div>
+
+          <!-- KPI 4: Pure Net Profit -->
+          <div id="kpi-profit-card" class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-emerald-200">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Czysty zysk netto</span>
+              <span id="kpi-margin-badge" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800">Marża 0%</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2 flex-wrap">
+              <span id="kpi-total-profit" class="text-2xl font-extrabold tracking-tight text-emerald-600">0,00 zł</span>
+            </div>
+            <div class="mt-1 text-xs text-slate-500">
+              Na 1 szt.: <strong id="kpi-unit-profit" class="text-slate-800 font-semibold">0,00 zł</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Action: Add Current Part to Multi-Item Client Offer -->
+        <button type="button" id="add-to-quote-cart-btn" class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-sm shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99]">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          <span>Dodaj tę pozycję do oferty klienta</span>
+        </button>
+
+        <!-- INTERACTIVE SVG DONUT CHART -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Struktura ceny sprzedaży</h3>
+              <p class="text-xs text-slate-500">Najedź lub kliknij segment, aby sprawdzić udział</p>
+            </div>
+            <span id="chart-meta-badge" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">
+              2h 30m • 45 g
+            </span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center gap-5">
+            <div class="relative w-40 h-40 shrink-0 flex items-center justify-center">
+              <svg id="cost-donut-svg" viewBox="0 0 160 160" class="w-full h-full -rotate-90 overflow-visible" aria-label="Wykres struktury ceny">
+                <circle cx="80" cy="80" r="58" fill="none" stroke="#f1f5f9" stroke-width="17" />
+                <g id="donut-slices-group"></g>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-4 pointer-events-none">
+                <span id="donut-center-label" class="text-[10px] font-semibold text-slate-500 leading-tight line-clamp-1">Cena 1 szt.</span>
+                <span id="donut-center-value" class="text-sm font-extrabold text-slate-900 mt-0.5">0,00 zł</span>
+                <span id="donut-center-percent" class="text-[10px] font-bold text-orange-600 mt-0.5">100%</span>
+              </div>
+            </div>
+
+            <div id="donut-legend" class="w-full grid grid-cols-1 gap-1.5 text-xs">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- MULTI-ITEM CLIENT QUOTE CART & A4 PDF GENERATOR -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <span>Oferta zbiorcza dla klienta</span>
+                <span id="cart-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-900 text-orange-400">0 poz.</span>
+              </h3>
+              <p class="text-xs text-slate-500">Koszyk pozycji z miniaturkami do wydruku PDF A4 lub wysyłki</p>
+            </div>
+            <button type="button" id="clear-cart-btn" class="hidden text-xs font-semibold text-rose-600 hover:underline">
+              Wyczyść
+            </button>
+          </div>
+
+          <!-- Cart Items List -->
+          <div id="quote-cart-empty" class="py-6 px-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-1.5">
+            <p class="text-xs font-semibold text-slate-600">Koszyk oferty jest jeszcze pusty</p>
+            <p class="text-[11px] text-slate-400">Kliknij <strong>„Dodaj tę pozycję do oferty klienta”</strong> powyżej lub wczytaj plik <code class="bg-slate-200/70 px-1 rounded">.3mf</code>, aby budować wycenę wielopozycyjną.</p>
+          </div>
+
+          <div id="quote-cart-list" class="hidden space-y-2.5 max-h-80 overflow-y-auto pr-1">
+            <!-- Dynamically rendered quote items with thumbnails & qty controls -->
+          </div>
+
+          <!-- Cart Totals Summary -->
+          <div id="quote-cart-totals" class="hidden p-3.5 rounded-xl bg-slate-900 text-white flex items-center justify-between gap-3">
+            <div>
+              <span class="text-[11px] text-slate-300 block">Suma wszystkich pozycji w ofercie:</span>
+              <span id="cart-total-net-sub" class="text-xs text-slate-400">Netto: 0,00 zł</span>
+            </div>
+            <div class="text-right">
+              <span id="cart-total-gross" class="text-lg font-extrabold text-orange-400">0,00 zł</span>
+            </div>
+          </div>
+
+          <!-- Offer Details & PDF Thumbnail Toggle -->
+          <div class="space-y-3 pt-1">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label for="offer-number-input" class="block text-[11px] font-semibold text-slate-600 mb-1">Numer oferty</label>
+                <input type="text" id="offer-number-input" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+              </div>
+              <div>
+                <label for="offer-delivery-input" class="block text-[11px] font-semibold text-slate-600 mb-1">Termin realizacji</label>
+                <input type="text" id="offer-delivery-input" value="3–5 dni roboczych" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+              </div>
+            </div>
+
+            <div>
+              <label for="offer-client-input" class="block text-[11px] font-semibold text-slate-600 mb-1">Dane klienta / firmy zamawiającej</label>
+              <input type="text" id="offer-client-input" placeholder="np. Jan Kowalski / Firma ABC Sp. z o.o., NIP..." class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+            </div>
+
+            <div>
+              <label for="offer-notes-input" class="block text-[11px] font-semibold text-slate-600 mb-1">Uwagi na ofercie</label>
+              <input type="text" id="offer-notes-input" value="Wycena obejmuje druk 3D, usunięcie podpór oraz bezpieczne pakowanie." class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
+            </div>
+
+            <!-- Toggle: Show model thumbnails in PDF offer -->
+            <label class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer select-none">
+              <span class="text-xs font-semibold text-slate-700">Pokaż miniaturki modeli w ofercie PDF</span>
+              <input type="checkbox" id="show-pdf-thumbnails-toggle" checked class="w-4 h-4 accent-orange-500 rounded cursor-pointer" />
+            </label>
+          </div>
+
+          <!-- Export Actions: Print A4 PDF & Copy Text Quote -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <button type="button" id="print-pdf-btn" class="py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 transition">
+              <svg class="w-4 h-4 text-orange-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              <span>Drukuj / Zapisz PDF (A4)</span>
+            </button>
+
+            <button type="button" id="copy-quote-btn" class="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold text-xs sm:text-sm border border-slate-200 flex items-center justify-center gap-2 transition">
+              <svg class="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              <span id="copy-quote-label">Kopiuj ofertę tekstową</span>
+            </button>
+          </div>
+
+          <!-- Hidden / Collapsible Plain Text Preview for Copying -->
+          <details class="text-xs text-slate-500">
+            <summary class="cursor-pointer font-semibold hover:text-slate-800 select-none">Podgląd tekstu oferty do wiadomości e-mail / Allegro / OLX</summary>
+            <textarea id="client-quote-text" rows="8" readonly class="mt-2 w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[11px] leading-relaxed text-slate-800 focus:outline-none"></textarea>
+          </details>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Mobile Sticky Bottom Bar -->
+  <div id="mobile-sticky-bar" class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2.5 shadow-lg">
+    <div class="flex items-center justify-between gap-3 max-w-lg mx-auto">
+      <div>
+        <div class="text-[11px] font-medium text-slate-500">Wartość pozycji</div>
+        <div class="flex items-baseline gap-2">
+          <span id="mobile-bar-total" class="text-base font-extrabold text-slate-900">0,00 zł</span>
+          <span id="mobile-bar-profit" class="text-xs font-bold text-emerald-600">+0,00 zł zysku</span>
+        </div>
+      </div>
+      <button type="button" id="mobile-scroll-results" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs">
+        Podsumowanie ↓
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * PrintCalc 3D PRO — Complete .3MF / .GCODE / AMS Pricing Engine
+     * Single-file architecture ready for GitHub Pages (index.html)
+     */
+
+    const STORAGE_KEY_SETTINGS = 'printcalc3d_pro_settings_v2';
+    const STORAGE_KEY_BRAND = 'printcalc3d_pro_brand_v2';
+
+    // Default Material Catalog (Editable prices per kg/L)
+    const DEFAULT_MATERIALS = [
+      { id: 'PLA', name: 'PLA', price: 75, density: 1.24, unit: 'kg', massUnit: 'g' },
+      { id: 'PETG', name: 'PETG', price: 85, density: 1.27, unit: 'kg', massUnit: 'g' },
+      { id: 'ASA / ABS', name: 'ASA / ABS', price: 105, density: 1.05, unit: 'kg', massUnit: 'g' },
+      { id: 'TPU', name: 'TPU / Flex', price: 135, density: 1.21, unit: 'kg', massUnit: 'g' },
+      { id: 'PA12-CF', name: 'PA12-CF / Nylon', price: 250, density: 1.15, unit: 'kg', massUnit: 'g' },
+      { id: 'SLA', name: 'Żywica SLA', price: 130, density: 1.12, unit: 'L', massUnit: 'ml' },
+    ];
+
+    // Printer Profiles
+    const PRINTER_PRESETS = [
+      { id: 'corexy', label: 'Szybka CoreXY', sub: 'Bambu P1S/X1C/A1', watt: 130, cost: 3500, life: 2500, maint: 0.80 },
+      { id: 'standard', label: 'Standard FDM', sub: 'Prusa / Ender', watt: 110, cost: 2200, life: 2500, maint: 0.60 },
+      { id: 'large', label: 'Wielkoformatowa', sub: '350+ mm / Komora', watt: 260, cost: 6500, life: 3000, maint: 1.30 },
+      { id: 'sla', label: 'Żywiczna SLA', sub: 'MSLA + Myjka UV', watt: 65, cost: 2400, life: 2000, maint: 1.10 },
+    ];
+
+    // Default Configuration State
+    const FACTORY_STATE = {
+      projectName: '',
+      selectedMaterialId: 'PLA',
+      materials: JSON.parse(JSON.stringify(DEFAULT_MATERIALS)),
+      materialPrice: 75,
+      materialConsumption: 45,
+      amsMode: false,
+      amsSlots: [
+        { id: 1, color: '#f97316', materialType: 'PLA', weightGrams: 32.5, pricePerKg: 75 },
+        { id: 2, color: '#0f172a', materialType: 'PLA', weightGrams: 12.5, pricePerKg: 75 },
+      ],
+      printHours: 2,
+      printMinutes: 30,
+      orderQuantity: 1,
+      printerPresetId: 'corexy',
+      printerWattage: 130,
+      electricityPrice: 1.15,
+      printerCost: 3500,
+      printerLifespan: 2500,
+      maintenanceCost: 0.80,
+      prepMinutes: 10,
+      postMinutes: 5,
+      hourlyRate: 60,
+      extrasCost: 1.50,
+      failureRate: 8,
+      minOrderValue: 15,
+      markup: 60,
+      quantityDiscount: 0,
+      commissionRate: 0,
+      vatMode: '23', // '23' | '8' | '0' | 'novat'
+      showPdfThumbnails: true,
+    };
+
+    const DEFAULT_BRAND = {
+      brandName: 'PrintCalc 3D Studio',
+      brandTagline: 'Profesjonalny druk 3D i prototypowanie na zamówienie',
+      brandContact: '',
+      logoDataUrl: '', // Compressed Data URL or relative path like ./logo.png
+    };
+
+    // Runtime State
+    let state = JSON.parse(JSON.stringify(FACTORY_STATE));
+    let brandState = { ...DEFAULT_BRAND };
+    let currentThumbnailDataUrl = ''; // Thumbnail for currently active model (from .3mf, .gcode, or manual photo)
+    let importedPlates = []; // Array of parsed plates from .3mf or multiple .gcode files
+    let activePlateIndex = 0;
+    let quoteCart = []; // Array of items added to the multi-item offer
+    let lastCalc = null;
+    let activeSliceIndex = null;
+
+    // Formatters
+    const plnFmt = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    function formatPLN(val) {
+      const safe = Number.isFinite(val) ? val : 0;
+      return `${plnFmt.format(safe)} zł`;
+    }
+    function formatDuration(hours) {
+      const totalMin = Math.max(0, Math.round(hours * 60));
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      if (h === 0) return `${m} min`;
+      if (m === 0) return `${h} godz.`;
+      return `${h} godz. ${m} min`;
+    }
+    function sanitizeNum(val, fallback = 0) {
+      const n = parseFloat(val);
+      return Number.isNaN(n) || n < 0 ? fallback : n;
+    }
+
+    /**
+     * Toast Notification System (Zero native alert() / confirm())
+     */
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const accent = type === 'success' ? 'border-emerald-500 text-emerald-400' : type === 'error' ? 'border-rose-500 text-rose-400' : 'border-orange-500 text-orange-400';
+      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 text-white border-l-4 shadow-xl text-xs sm:text-sm font-medium transition-all duration-300 ${accent}`;
+      toast.innerHTML = `
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+          ${type === 'success'
+            ? '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />'
+            : '<path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />'}
+        </svg>
+        <span class="text-white flex-1">${message}</span>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    /**
+     * Image Compression Utility (Optimizes uploaded logos and thumbnails for localStorage & PDF)
+     */
+    function compressImageFileToDataUrl(file, maxDim = 260, outputMime = 'image/png') {
+      return new Promise((resolve, reject) => {
+        if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+          return;
+        }
+        const img = new Image();
+        const objUrl = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(objUrl);
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL(outputMime, 0.88));
+        };
+        img.onerror = (err) => {
+          URL.revokeObjectURL(objUrl);
+          reject(err);
+        };
+        img.src = objUrl;
+      });
+    }
+
+    /**
+     * Brand & Logo Rendering
+     */
+    const DEFAULT_CUBE_ICON = `
+      <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+        <polyline stroke-linecap="round" stroke-linejoin="round" points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line stroke-linecap="round" stroke-linejoin="round" x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    `;
+
+    function renderBrandLogo(container, imgClass = 'w-full h-full object-contain p-1') {
+      if (!container) return;
+      const src = (brandState.logoDataUrl || '').trim();
+      if (src) {
+        container.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = brandState.brandName || 'Logo';
+        img.className = imgClass;
+        img.onerror = () => { container.innerHTML = DEFAULT_CUBE_ICON; };
+        container.appendChild(img);
+      } else {
+        container.innerHTML = DEFAULT_CUBE_ICON;
+      }
+    }
+
+    function applyBrandUI() {
+      const hasLogo = Boolean((brandState.logoDataUrl || '').trim());
+      const trigger = document.getElementById('header-logo-trigger');
+      trigger.className = hasLogo
+        ? 'group relative w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-xs shrink-0 overflow-hidden border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500'
+        : 'group relative w-11 h-11 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-sm shrink-0 overflow-hidden border border-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500';
+
+      renderBrandLogo(document.getElementById('header-logo-content'));
+      renderBrandLogo(document.getElementById('modal-logo-preview'), 'w-full h-full object-contain p-1.5');
+      renderBrandLogo(document.getElementById('print-logo-container'), 'w-full h-full object-contain p-1.5');
+
+      const name = (brandState.brandName || '').trim();
+      const titleEl = document.getElementById('header-brand-title');
+      if (name && name !== 'PrintCalc 3D Studio') {
+        titleEl.textContent = name;
+      } else {
+        titleEl.innerHTML = 'PrintCalc <span class="text-orange-500">3D</span>';
+      }
+
+      document.getElementById('header-brand-tagline').textContent =
+        (brandState.brandTagline || '').trim() || 'Profesjonalny kalkulator wyceny i sprzedaży wydruków 3D';
+
+      document.getElementById('print-brand-name').textContent = name || 'PrintCalc 3D Studio';
+      document.getElementById('print-brand-tagline').textContent = (brandState.brandTagline || '').trim();
+      document.getElementById('print-brand-contact').textContent = (brandState.brandContact || '').trim();
+    }
+
+    /**
+     * Material Mapping & Rate Lookup Helpers
+     */
+    function mapRawMaterialToId(raw) {
+      if (!raw) return 'PLA';
+      const u = raw.toUpperCase();
+      if (u.includes('TPU') || u.includes('TPE') || u.includes('FLEX')) return 'TPU';
+      if (u.includes('PA') || u.includes('NYLON') || u.includes('CF') || u.includes('PC')) return 'PA12-CF';
+      if (u.includes('ASA') || u.includes('ABS')) return 'ASA / ABS';
+      if (u.includes('PETG') || u.includes('PET')) return 'PETG';
+      if (u.includes('SLA') || u.includes('RESIN') || u.includes('ŻYWICA')) return 'SLA';
+      if (u.includes('PLA')) return 'PLA';
+      return 'PLA';
+    }
+
+    function getMaterialRateById(matId) {
+      const found = state.materials.find((m) => m.id === matId);
+      return found ? found.price : 75;
+    }
+
+    function getMaterialDensityById(matId) {
+      const found = state.materials.find((m) => m.id === matId);
+      return found ? found.density : 1.24;
+    }
+
+    /**
+     * =====================================================================
+     * SLICER FILE PARSERS: .3MF / .GCODE.3MF (JSZip) & .GCODE / .GCO
+     * =====================================================================
+     */
+    function parseDurationToSeconds(raw) {
+      if (!raw) return 0;
+      const s = String(raw).trim();
+      if (/^\d+(\.\d+)?$/.test(s)) return Math.round(parseFloat(s));
+
+      const colon = s.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/);
+      if (colon) {
+        if (colon[3] !== undefined) {
+          return parseInt(colon[1], 10) * 3600 + parseInt(colon[2], 10) * 60 + parseInt(colon[3], 10);
+        }
+        return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
+      }
+
+      let sec = 0;
+      const d = s.match(/(\d+(?:\.\d+)?)\s*d(?:ays?|ni)?/i);
+      const h = s.match(/(\d+(?:\.\d+)?)\s*h(?:ours?|odz\.?)?/i);
+      const m = s.match(/(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?(?!m)/i);
+      const sc = s.match(/(\d+(?:\.\d+)?)\s*s(?:ec(?:onds?)?)?/i);
+      if (d) sec += parseFloat(d[1]) * 86400;
+      if (h) sec += parseFloat(h[1]) * 3600;
+      if (m) sec += parseFloat(m[1]) * 60;
+      if (sc) sec += parseFloat(sc[1]);
+      return Math.round(sec);
+    }
+
+    function cleanTitleFromFilename(name) {
+      const base = name
+        .replace(/\.gcode\.3mf$/i, '')
+        .replace(/\.(3mf|gcode|gco|nc)$/i, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Wydruk 3D';
+    }
+
+    function normalizeHexColor(hex) {
+      if (!hex) return '#64748b';
+      const cleaned = hex.trim();
+      if (/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(cleaned)) {
+        return cleaned.slice(0, 7);
+      }
+      return '#64748b';
+    }
+
+    /**
+     * Extract metadata & embedded base64 thumbnail from G-code text
+     */
+    function extractMetadataFromGcodeText(text, fallbackFileName = 'model.gcode') {
+      let slicer = 'Slicer G-code';
+      if (/OrcaSlicer/i.test(text)) slicer = 'OrcaSlicer';
+      else if (/BambuStudio|Bambu Studio/i.test(text)) slicer = 'Bambu Studio';
+      else if (/PrusaSlicer/i.test(text)) slicer = 'PrusaSlicer';
+      else if (/Cura_SteamEngine|UltiMaker Cura/i.test(text) || /;TIME:/i.test(text)) slicer = 'UltiMaker Cura';
+      else if (/Simplify3D/i.test(text)) slicer = 'Simplify3D';
+      else if (/SuperSlicer/i.test(text)) slicer = 'SuperSlicer';
+
+      // Print Time
+      let timeSeconds = 0;
+      const timeRegexes = [
+        /;\s*estimated printing time \(normal mode\)\s*=\s*(.+)/i,
+        /;\s*total estimated time:\s*(.+)/i,
+        /;\s*model printing time:\s*([^;\n]+)/i,
+        /;\s*estimated_time\(s\)\s*[:=]\s*(\d+(?:\.\d+)?)/i,
+        /;\s*TIME\s*:\s*(\d+)/i,
+        /;\s*Build time:\s*(.+)/i,
+      ];
+      for (const rx of timeRegexes) {
+        const m = text.match(rx);
+        if (m && m[1]) {
+          const parsed = parseDurationToSeconds(m[1]);
+          if (parsed > 0) { timeSeconds = parsed; break; }
+        }
+      }
+
+      // Per-tool / total Filament Weight [g]
+      let weightsPerSlot = [];
+      const weightRegexes = [
+        /;\s*total filament weight \[g\]\s*[:=]\s*([\d.,\s]+)/i,
+        /;\s*filament used \[g\]\s*=\s*([\d.,\s]+)/i,
+        /;\s*total filament used \[g\]\s*=\s*([\d.,\s]+)/i,
+        /;\s*filament_used_g\s*[:=]\s*([\d.,\s]+)/i,
+        /;\s*Plastic weight:\s*([\d.,]+)\s*g/i,
+      ];
+      for (const rx of weightRegexes) {
+        const m = text.match(rx);
+        if (m && m[1]) {
+          const nums = m[1].split(',').map((v) => parseFloat(v.trim()));
+          if (nums.some((n) => Number.isFinite(n) && n > 0)) {
+            weightsPerSlot = nums.map((n) => (Number.isFinite(n) ? n : 0));
+            break;
+          }
+        }
+      }
+
+      // Length [mm or m]
+      let lengthsMmPerSlot = [];
+      const lenRegexes = [
+        /;\s*filament used \[mm\]\s*=\s*([\d.,\s]+)/i,
+        /;\s*total filament length \[mm\]\s*[:=]\s*([\d.,\s]+)/i,
+        /;\s*filament_used_mm\s*[:=]\s*([\d.,\s]+)/i,
+      ];
+      for (const rx of lenRegexes) {
+        const m = text.match(rx);
+        if (m && m[1]) {
+          const nums = m[1].split(',').map((v) => parseFloat(v.trim()));
+          if (nums.some((n) => Number.isFinite(n) && n > 0)) {
+            lengthsMmPerSlot = nums.map((n) => (Number.isFinite(n) ? n : 0));
+            break;
+          }
+        }
+      }
+      if (lengthsMmPerSlot.length === 0) {
+        const curaM = text.match(/;\s*Filament used:\s*([\d.,]+)\s*m\b/i);
+        if (curaM && curaM[1]) {
+          lengthsMmPerSlot = [parseFloat(curaM[1].replace(',', '.')) * 1000];
+        }
+      }
+
+      // Material types (supports semicolon separated lists like "PLA;PETG")
+      let rawMaterials = [];
+      const matRegexes = [
+        /;\s*filament_type\s*=\s*([^\n]+)/i,
+        /;\s*Material name:\s*([^\n]+)/i,
+        /;\s*Material:\s*([^\n]+)/i,
+      ];
+      for (const rx of matRegexes) {
+        const m = text.match(rx);
+        if (m && m[1]) {
+          rawMaterials = m[1].split(';').map((s) => s.replace(/"/g, '').trim()).filter(Boolean);
+          if (rawMaterials.length > 0) break;
+        }
+      }
+
+      // Filament Colors (if present in Bambu/Orca G-code comments)
+      let rawColors = [];
+      const colMatch = text.match(/;\s*filament_colour\s*=\s*([^\n]+)/i);
+      if (colMatch && colMatch[1]) {
+        rawColors = colMatch[1].split(';').map((c) => normalizeHexColor(c));
+      }
+
+      // Layer Height & Printer Model
+      const layerMatch = text.match(/;\s*(?:layer_height|Layer height)\s*[:=]\s*([\d.]+)/i);
+      const layerHeight = layerMatch ? `${layerMatch[1]} mm` : '';
+      const printerMatch = text.match(/;\s*printer_model\s*=\s*([^\n;]+)/i);
+      const printerModel = printerMatch ? printerMatch[1].trim() : '';
+
+      // Embedded base64 thumbnail (; thumbnail begin WxH LEN ... ; thumbnail end)
+      let thumbnailDataUrl = '';
+      const thumbBlocks = [...text.matchAll(/;\s*thumbnail(?:_JPG)?\s+begin\s+(\d+)x(\d+)\s+\d+\s*\n([\s\S]*?);\s*thumbnail(?:_JPG)?\s+end/gi)];
+      if (thumbBlocks.length > 0) {
+        // Pick largest thumbnail block
+        let bestBlock = thumbBlocks[0];
+        let bestArea = parseInt(bestBlock[1], 10) * parseInt(bestBlock[2], 10);
+        for (const blk of thumbBlocks) {
+          const area = parseInt(blk[1], 10) * parseInt(blk[2], 10);
+          if (area > bestArea) {
+            bestArea = area;
+            bestBlock = blk;
+          }
+        }
+        const isJpg = /thumbnail_JPG/i.test(bestBlock[0]);
+        const cleanB64 = bestBlock[3]
+          .split('\n')
+          .map((line) => line.replace(/^;\s*/, '').trim())
+          .join('');
+        if (cleanB64.length > 40) {
+          thumbnailDataUrl = `data:image/${isJpg ? 'jpeg' : 'png'};base64,${cleanB64}`;
+        }
+      }
+
+      // Build Filament Slots list
+      const slots = [];
+      const slotCount = Math.max(weightsPerSlot.length, lengthsMmPerSlot.length, 1);
+      const radiusCm = (1.75 / 2) / 10;
+
+      for (let i = 0; i < slotCount; i++) {
+        const matId = mapRawMaterialToId(rawMaterials[i] || rawMaterials[0] || 'PLA');
+        const density = getMaterialDensityById(matId);
+        let wGrams = weightsPerSlot[i] || 0;
+        if (wGrams <= 0 && lengthsMmPerSlot[i] > 0) {
+          const volCm3 = Math.PI * radiusCm * radiusCm * (lengthsMmPerSlot[i] / 10);
+          wGrams = volCm3 * density;
+        }
+        if (wGrams > 0) {
+          slots.push({
+            id: i + 1,
+            color: rawColors[i] || (i === 0 ? '#f97316' : '#0f172a'),
+            materialType: matId,
+            weightGrams: Math.round(wGrams * 10) / 10,
+            pricePerKg: getMaterialRateById(matId),
+          });
+        }
+      }
+
+      const totalWeight = slots.reduce((sum, s) => sum + s.weightGrams, 0);
+
+      return [{
+        sourceType: 'gcode',
+        fileName: fallbackFileName,
+        plateIndex: 1,
+        plateName: cleanTitleFromFilename(fallbackFileName),
+        slicer,
+        printerModel,
+        layerHeight,
+        timeSeconds,
+        weightGrams: Math.round(totalWeight * 10) / 10,
+        filaments: slots,
+        thumbnailDataUrl,
+      }];
+    }
+
+    /**
+     * Parse .3mf / .gcode.3mf Archive using JSZip
+     */
+    async function parse3mfArchive(file) {
+      if (typeof JSZip === 'undefined') {
+        throw new Error('Biblioteka JSZip nie została załadowana (sprawdź połączenie z internetem).');
+      }
+
+      const zip = await JSZip.loadAsync(file);
+
+      // Helper to find file in zip case-insensitively
+      const findZipFile = (targetPath) => {
+        const exact = zip.file(targetPath);
+        if (exact) return exact;
+        const lowerTarget = targetPath.toLowerCase().replace(/^\/+/, '');
+        const allNames = Object.keys(zip.files);
+        const foundName = allNames.find((n) => n.toLowerCase().replace(/^\/+/, '') === lowerTarget);
+        return foundName ? zip.file(foundName) : null;
+      };
+
+      // 1. Parse Metadata/project_settings.config (JSON) if available
+      let projectSettings = null;
+      const projSettingsEntry = findZipFile('Metadata/project_settings.config');
+      if (projSettingsEntry) {
+        try {
+          const jsonText = await projSettingsEntry.async('text');
+          projectSettings = JSON.parse(jsonText);
+        } catch (e) {
+          projectSettings = null;
+        }
+      }
+
+      const slicerName = projectSettings && projectSettings.from
+        ? projectSettings.from
+        : (/orcaslicer/i.test(file.name) ? 'OrcaSlicer (.3mf)' : 'Bambu / Orca (.3mf)');
+
+      const printerModel = projectSettings
+        ? (Array.isArray(projectSettings.printer_model) ? projectSettings.printer_model[0] : (projectSettings.printer_model || projectSettings.printer_settings_id || ''))
+        : '';
+
+      const layerHeight = projectSettings && projectSettings.layer_height
+        ? `${Array.isArray(projectSettings.layer_height) ? projectSettings.layer_height[0] : projectSettings.layer_height} mm`
+        : '';
+
+      const projTypes = projectSettings && Array.isArray(projectSettings.filament_type) ? projectSettings.filament_type : [];
+      const projColors = projectSettings && Array.isArray(projectSettings.filament_colour) ? projectSettings.filament_colour : [];
+      const projCosts = projectSettings && Array.isArray(projectSettings.filament_cost) ? projectSettings.filament_cost : [];
+
+      // 2. Parse Metadata/slice_info.config (XML)
+      const sliceInfoEntry = findZipFile('Metadata/slice_info.config');
+      const platesResult = [];
+
+      if (sliceInfoEntry) {
+        const xmlText = await sliceInfoEntry.async('text');
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+        const plateNodes = Array.from(xmlDoc.querySelectorAll('plate'));
+
+        for (let idx = 0; idx < plateNodes.length; idx++) {
+          const plateEl = plateNodes[idx];
+          const metaMap = {};
+          plateEl.querySelectorAll('metadata').forEach((m) => {
+            const k = m.getAttribute('key');
+            const v = m.getAttribute('value');
+            if (k) metaMap[k] = v;
+          });
+
+          const plateIndex = parseInt(metaMap.index || String(idx + 1), 10);
+          const timeSeconds = parseInt(metaMap.prediction || '0', 10) || 0;
+          let totalWeight = parseFloat(metaMap.weight || '0') || 0;
+
+          // Extract <filament id="..." type="..." color="..." used_g="..." used_m="..."/>
+          const filamentNodes = Array.from(plateEl.querySelectorAll('filament'));
+          const filaments = [];
+
+          filamentNodes.forEach((fNode, fIdx) => {
+            const slotId = parseInt(fNode.getAttribute('id') || String(fIdx + 1), 10);
+            const rawType = fNode.getAttribute('type') || projTypes[slotId - 1] || 'PLA';
+            const mappedType = mapRawMaterialToId(rawType);
+            const rawColor = fNode.getAttribute('color') || projColors[slotId - 1] || '#f97316';
+            const usedG = parseFloat(fNode.getAttribute('used_g') || '0') || 0;
+            const usedM = parseFloat(fNode.getAttribute('used_m') || '0') || 0;
+
+            let grams = usedG;
+            if (grams <= 0 && usedM > 0) {
+              const radiusCm = (1.75 / 2) / 10;
+              const volCm3 = Math.PI * radiusCm * radiusCm * (usedM * 100);
+              grams = volCm3 * getMaterialDensityById(mappedType);
+            }
+
+            if (grams > 0.01) {
+              // Use configured rate for that material, or fallback to project_settings cost if > 0
+              const configuredRate = getMaterialRateById(mappedType);
+              const projSlotCost = parseFloat(projCosts[slotId - 1] || '0');
+              const finalRate = configuredRate > 0 ? configuredRate : (projSlotCost > 0 ? projSlotCost : 75);
+
+              filaments.push({
+                id: slotId,
+                color: normalizeHexColor(rawColor),
+                materialType: mappedType,
+                weightGrams: Math.round(grams * 10) / 10,
+                pricePerKg: finalRate,
+              });
+            }
+          });
+
+          // If <filament> list had weights, sum them; if empty but totalWeight > 0, create 1 slot
+          const sumFilamentsWeight = filaments.reduce((acc, f) => acc + f.weightGrams, 0);
+          if (filaments.length === 0 && totalWeight > 0) {
+            const fallbackMat = mapRawMaterialToId(projTypes[0] || 'PLA');
+            filaments.push({
+              id: 1,
+              color: normalizeHexColor(projColors[0] || '#f97316'),
+              materialType: fallbackMat,
+              weightGrams: Math.round(totalWeight * 10) / 10,
+              pricePerKg: getMaterialRateById(fallbackMat),
+            });
+          } else if (sumFilamentsWeight > 0) {
+            totalWeight = Math.round(sumFilamentsWeight * 10) / 10;
+          }
+
+          // Extract Plate Thumbnail (Metadata/plate_1.png, thumbnail_file, thumbnail/thumbnail.png)
+          let thumbnailDataUrl = '';
+          const candidateThumbPaths = [
+            metaMap.thumbnail_file,
+            `Metadata/plate_${plateIndex}.png`,
+            `Metadata/plate_${idx + 1}.png`,
+            'Metadata/plate_1.png',
+            'thumbnail/thumbnail.png',
+            'Metadata/top_1.png',
+          ].filter(Boolean);
+
+          for (const path of candidateThumbPaths) {
+            const thumbEntry = findZipFile(path);
+            if (thumbEntry) {
+              const b64 = await thumbEntry.async('base64');
+              const ext = path.toLowerCase().endsWith('.jpg') || path.toLowerCase().endsWith('.jpeg') ? 'jpeg' : 'png';
+              thumbnailDataUrl = `data:image/${ext};base64,${b64}`;
+              break;
+            }
+          }
+
+          const baseTitle = cleanTitleFromFilename(file.name);
+          const plateTitle = plateNodes.length > 1
+            ? `${baseTitle} — Płyta ${plateIndex}`
+            : baseTitle;
+
+          platesResult.push({
+            sourceType: '3mf',
+            fileName: file.name,
+            plateIndex,
+            plateName: plateTitle,
+            slicer: slicerName,
+            printerModel,
+            layerHeight,
+            timeSeconds,
+            weightGrams: totalWeight,
+            filaments,
+            thumbnailDataUrl,
+          });
+        }
+      }
+
+      // 3. Fallback: If slice_info.config had no sliced plates (e.g. unsliced .3mf or .gcode.3mf with embedded gcode)
+      const validSlicedPlates = platesResult.filter((p) => p.timeSeconds > 0 || p.weightGrams > 0);
+      if (validSlicedPlates.length > 0) {
+        return validSlicedPlates;
+      }
+
+      // Look for embedded G-code inside the .3mf archive (e.g. Metadata/plate_1.gcode)
+      const gcodeFilesInZip = Object.keys(zip.files).filter((n) => n.toLowerCase().endsWith('.gcode'));
+      if (gcodeFilesInZip.length > 0) {
+        const fallbackPlates = [];
+        for (let i = 0; i < gcodeFilesInZip.length; i++) {
+          const gEntry = zip.file(gcodeFilesInZip[i]);
+          const gText = await gEntry.async('text');
+          const parsedG = extractMetadataFromGcodeText(gText, file.name)[0];
+          parsedG.sourceType = '3mf';
+          parsedG.plateIndex = i + 1;
+          parsedG.plateName = gcodeFilesInZip.length > 1
+            ? `${cleanTitleFromFilename(file.name)} — Płyta ${i + 1}`
+            : cleanTitleFromFilename(file.name);
+
+          // Try attaching plate thumbnail if G-code had none
+          if (!parsedG.thumbnailDataUrl) {
+            const thumbEntry = findZipFile(`Metadata/plate_${i + 1}.png`) || findZipFile('Metadata/plate_1.png') || findZipFile('thumbnail/thumbnail.png');
+            if (thumbEntry) {
+              const b64 = await thumbEntry.async('base64');
+              parsedG.thumbnailDataUrl = `data:image/png;base64,${b64}`;
+            }
+          }
+          fallbackPlates.push(parsedG);
+        }
+        return fallbackPlates;
+      }
+
+      // Even if unsliced .3mf, extract thumbnail so user gets preview
+      let unslicedThumb = '';
+      const thumbEntry = findZipFile('Metadata/plate_1.png') || findZipFile('thumbnail/thumbnail.png');
+      if (thumbEntry) {
+        const b64 = await thumbEntry.async('base64');
+        unslicedThumb = `data:image/png;base64,${b64}`;
+      }
+
+      return [{
+        sourceType: '3mf',
+        fileName: file.name,
+        plateIndex: 1,
+        plateName: cleanTitleFromFilename(file.name),
+        slicer: slicerName,
+        printerModel,
+        layerHeight,
+        timeSeconds: 0,
+        weightGrams: 0,
+        filaments: [],
+        thumbnailDataUrl: unslicedThumb,
+        isUnslicedWarning: true,
+      }];
+    }
+
+    /**
+     * Parse .gcode / .gco / .nc via Blob.slice() (Fast Header + Tail read)
+     */
+    async function parseGcodeFileFast(file) {
+      const CHUNK = 250 * 1024;
+      let text = '';
+      if (file.size <= CHUNK * 2) {
+        text = await file.text();
+      } else {
+        const head = await file.slice(0, CHUNK).text();
+        const tail = await file.slice(file.size - CHUNK, file.size).text();
+        text = `${head}\n${tail}`;
+      }
+      return extractMetadataFromGcodeText(text, file.name);
+    }
+
+    /**
+     * Handle Multiple Dropped or Selected Files (.3mf, .gcode.3mf, .gcode, .gco, .nc)
+     */
+    async function handleSlicerFilesUpload(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+
+      const allPlates = [];
+      for (const file of files) {
+        const lower = file.name.toLowerCase();
+        try {
+          if (lower.endsWith('.3mf')) {
+            const plates = await parse3mfArchive(file);
+            allPlates.push(...plates);
+          } else {
+            const plates = await parseGcodeFileFast(file);
+            allPlates.push(...plates);
+          }
+        } catch (err) {
+          showToast(`Błąd odczytu ${file.name}: ${err.message || 'nieprawidłowy format'}`, 'error');
+        }
+      }
+
+      if (allPlates.length === 0) return;
+
+      importedPlates = allPlates;
+      activePlateIndex = 0;
+      applyImportedPlateToCalculator(allPlates[0]);
+
+      const first = allPlates[0];
+      if (first.isUnslicedWarning) {
+        showToast('Wczytano niepocięty plik .3mf (brak czasu/wagi). Wyeksportuj .gcode.3mf ze slicera lub wpisz dane ręcznie.', 'info');
+      } else if (allPlates.length === 1) {
+        const colorInfo = first.filaments.length > 1 ? ` (${first.filaments.length} kolory AMS)` : '';
+        showToast(`Wczytano ${first.fileName}: ${first.weightGrams} g${colorInfo}, ${formatDuration(first.timeSeconds / 3600)}`, 'success');
+      } else {
+        showToast(`Wczytano ${allPlates.length} płyt roboczych / plików! Możesz je przełączać lub dodać wszystkie do oferty.`, 'success');
+      }
+    }
+
+    /**
+     * Load a specific parsed plate into the active calculator form
+     */
+    function applyImportedPlateToCalculator(plate) {
+      if (!plate) return;
+
+      state.projectName = plate.plateName || cleanTitleFromFilename(plate.fileName);
+      currentThumbnailDataUrl = plate.thumbnailDataUrl || '';
+
+      // Update Print Time
+      if (plate.timeSeconds > 0) {
+        const totalMin = Math.max(1, Math.round(plate.timeSeconds / 60));
+        state.printHours = Math.floor(totalMin / 60);
+        state.printMinutes = totalMin % 60;
+      }
+
+      // Smart Waste Factor: 0% for .3mf (already includes purge tower), 8% for manual/raw
+      if (plate.sourceType === '3mf') {
+        state.failureRate = 0;
+        document.getElementById('waste-mode-hint').textContent = '.3mf (z wieżą): 0%';
+      }
+
+      // Handle Single vs Multi-Material (AMS) Filaments
+      if (plate.filaments && plate.filaments.length > 1) {
+        state.amsMode = true;
+        state.amsSlots = plate.filaments.map((f, idx) => ({
+          id: f.id || idx + 1,
+          color: f.color || '#f97316',
+          materialType: f.materialType || 'PLA',
+          weightGrams: f.weightGrams,
+          pricePerKg: f.pricePerKg || getMaterialRateById(f.materialType || 'PLA'),
+        }));
+        state.materialConsumption = plate.weightGrams;
+      } else if (plate.filaments && plate.filaments.length === 1) {
+        const single = plate.filaments[0];
+        state.amsMode = false;
+        state.selectedMaterialId = single.materialType || 'PLA';
+        state.materialPrice = single.pricePerKg || getMaterialRateById(state.selectedMaterialId);
+        state.materialConsumption = single.weightGrams;
+        // Also populate slot 1 in case user toggles AMS later
+        state.amsSlots = [{
+          id: 1,
+          color: single.color || '#f97316',
+          materialType: single.materialType || 'PLA',
+          weightGrams: single.weightGrams,
+          pricePerKg: state.materialPrice,
+        }];
+      } else if (plate.weightGrams > 0) {
+        state.amsMode = false;
+        state.materialConsumption = plate.weightGrams;
+      }
+
+      syncUIFromState();
+      recalculate();
+      renderImportedModelCard(plate);
+    }
+
+    /**
+     * Render Imported Model Card (with plate_1.png preview & multi-plate switcher)
+     */
+    function renderImportedModelCard(plate) {
+      const card = document.getElementById('imported-model-card');
+      if (!plate) {
+        card.classList.add('hidden');
+        return;
+      }
+
+      card.classList.remove('hidden');
+      document.getElementById('imported-filename').textContent = plate.plateName || plate.fileName;
+      document.getElementById('imported-slicer-badge').textContent = plate.slicer || 'Slicer';
+
+      const metaParts = [];
+      if (plate.printerModel) metaParts.push(`Drukarka: ${plate.printerModel}`);
+      if (plate.layerHeight) metaParts.push(`Warstwa: ${plate.layerHeight}`);
+      document.getElementById('imported-printer-meta').textContent = metaParts.join(' • ');
+
+      // Thumbnail Preview
+      const imgEl = document.getElementById('imported-plate-thumb');
+      const fallbackEl = document.getElementById('imported-plate-thumb-fallback');
+      if (plate.thumbnailDataUrl) {
+        imgEl.src = plate.thumbnailDataUrl;
+        imgEl.classList.remove('hidden');
+        fallbackEl.classList.add('hidden');
+      } else {
+        imgEl.classList.add('hidden');
+        fallbackEl.classList.remove('hidden');
+      }
+
+      // Pills
+      const pillsEl = document.getElementById('imported-pills');
+      const pills = [];
+      if (plate.timeSeconds > 0) {
+        pills.push(`<span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700">⏱ <strong>${formatDuration(plate.timeSeconds / 3600)}</strong></span>`);
+      }
+      if (plate.weightGrams > 0) {
+        pills.push(`<span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700">⚖️ <strong>${plate.weightGrams} g</strong></span>`);
+      }
+      if (plate.filaments && plate.filaments.length > 0) {
+        const dots = plate.filaments.map((f) =>
+          `<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block border border-slate-300" style="background:${f.color}"></span>${f.materialType} (${f.weightGrams}g)</span>`
+        ).join(' • ');
+        pills.push(`<span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700">🎨 ${dots}</span>`);
+      }
+      pillsEl.innerHTML = pills.join('');
+
+      // Multi-Plate Switcher
+      const switcherWrapper = document.getElementById('plates-switcher-wrapper');
+      const tabsContainer = document.getElementById('plates-tabs-container');
+      if (importedPlates.length > 1) {
+        switcherWrapper.classList.remove('hidden');
+        document.getElementById('plates-count-label').textContent = String(importedPlates.length);
+        tabsContainer.innerHTML = '';
+
+        importedPlates.forEach((p, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const isCurrent = idx === activePlateIndex;
+          btn.className = isCurrent
+            ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-xs'
+            : 'px-3 py-1.5 rounded-lg text-xs font-medium bg-white text-slate-700 border border-slate-200 hover:border-slate-400 transition';
+          btn.textContent = `${p.plateName} (${p.weightGrams}g)`;
+          btn.addEventListener('click', () => {
+            activePlateIndex = idx;
+            applyImportedPlateToCalculator(p);
+          });
+          tabsContainer.appendChild(btn);
+        });
+      } else {
+        switcherWrapper.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Render Editable Material Rate Cards & Printer Presets
+     */
+    function renderMaterialRateCards() {
+      const grid = document.getElementById('material-rates-grid');
+      grid.innerHTML = '';
+
+      state.materials.forEach((mat) => {
+        const isSelected = !state.amsMode && state.selectedMaterialId === mat.id;
+        const card = document.createElement('div');
+        card.className = isSelected
+          ? 'p-2.5 rounded-xl border-2 border-slate-900 bg-slate-900 text-white cursor-pointer transition shadow-xs'
+          : 'p-2.5 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-800 cursor-pointer transition';
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-1">
+            <span class="text-xs font-bold truncate">${mat.name}</span>
+            <span class="text-[10px] ${isSelected ? 'text-orange-400' : 'text-slate-400'} font-semibold">zł/${mat.unit}</span>
+          </div>
+          <div class="mt-1.5 flex items-center gap-1">
+            <input type="number" min="0" step="1" value="${mat.price}" aria-label="Cena ${mat.name}" class="mat-card-price w-full px-2 py-1 rounded-lg text-xs font-extrabold ${isSelected ? 'bg-slate-800 text-white border border-slate-700' : 'bg-white text-slate-900 border border-slate-200'} focus:outline-none" />
+          </div>
+        `;
+
+        card.addEventListener('click', (e) => {
+          if (e.target.classList.contains('mat-card-price')) return;
+          state.amsMode = false;
+          state.selectedMaterialId = mat.id;
+          state.materialPrice = mat.price;
+          if (mat.id === 'SLA') {
+            state.printerPresetId = 'sla';
+            state.printerWattage = 65;
+          }
+          syncUIFromState();
+          recalculate();
+        });
+
+        const priceInput = card.querySelector('.mat-card-price');
+        priceInput.addEventListener('input', (e) => {
+          const val = sanitizeNum(e.target.value, 0);
+          mat.price = val;
+          if (state.selectedMaterialId === mat.id) {
+            state.materialPrice = val;
+            document.getElementById('material-price').value = val;
+          }
+          // Update matching AMS slots automatically
+          state.amsSlots.forEach((slot) => {
+            if (slot.materialType === mat.id) {
+              slot.pricePerKg = val;
+            }
+          });
+          if (state.amsMode) renderAmsSlotsTable();
+          recalculate();
+        });
+
+        grid.appendChild(card);
+      });
+    }
+
+    function renderPrinterPresets() {
+      const container = document.getElementById('printer-presets-container');
+      container.innerHTML = '';
+
+      PRINTER_PRESETS.forEach((p) => {
+        const isSelected = state.printerPresetId === p.id;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = isSelected
+          ? 'p-2.5 rounded-xl border border-slate-900 bg-slate-900 text-white text-left shadow-xs transition'
+          : 'p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100 text-slate-800 text-left transition';
+
+        btn.innerHTML = `
+          <div class="text-xs font-bold leading-tight">${p.label}</div>
+          <div class="text-[10px] ${isSelected ? 'text-orange-400' : 'text-slate-500'} mt-0.5 truncate">${p.sub}</div>
+        `;
+
+        btn.addEventListener('click', () => {
+          state.printerPresetId = p.id;
+          state.printerWattage = p.watt;
+          state.printerCost = p.cost;
+          state.printerLifespan = p.life;
+          state.maintenanceCost = p.maint;
+          syncUIFromState();
+          recalculate();
+        });
+
+        container.appendChild(btn);
+      });
+    }
+
+    /**
+     * Render Multi-Material / AMS Slots Table
+     */
+    function renderAmsSlotsTable() {
+      const tbody = document.getElementById('ams-slots-tbody');
+      tbody.innerHTML = '';
+
+      let totalWeight = 0;
+      let totalCost = 0;
+
+      const matOptions = ['PLA', 'PETG', 'ASA / ABS', 'TPU', 'PA12-CF', 'Support'];
+
+      state.amsSlots.forEach((slot, index) => {
+        const slotCost = (slot.weightGrams / 1000) * slot.pricePerKg;
+        totalWeight += slot.weightGrams;
+        totalCost += slotCost;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-2 px-3 whitespace-nowrap">
+            <div class="flex items-center gap-2">
+              <input type="color" value="${slot.color}" aria-label="Kolor slotu ${index + 1}" class="ams-color-input w-5 h-5 rounded-full shrink-0" />
+              <span class="font-bold text-slate-800">Slot ${slot.id || index + 1}</span>
+            </div>
+          </td>
+          <td class="py-2 px-2">
+            <select aria-label="Materiał slotu ${index + 1}" class="ams-mat-select px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 focus:outline-none">
+              ${matOptions.map((opt) => `<option value="${opt}" ${slot.materialType === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+            </select>
+          </td>
+          <td class="py-2 px-2 text-right">
+            <input type="number" min="0" step="0.1" value="${slot.weightGrams}" aria-label="Waga slotu ${index + 1}" class="ams-weight-input w-16 text-right px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 font-bold text-slate-900 tabular-nums focus:outline-none" />
+          </td>
+          <td class="py-2 px-2 text-right">
+            <input type="number" min="0" step="1" value="${slot.pricePerKg}" aria-label="Cena kg slotu ${index + 1}" class="ams-price-input w-16 text-right px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 font-semibold text-slate-800 tabular-nums focus:outline-none" />
+          </td>
+          <td class="py-2 px-3 text-right font-bold text-slate-900 tabular-nums whitespace-nowrap">
+            ${formatPLN(slotCost)}
+          </td>
+          <td class="py-2 px-2 text-center">
+            ${state.amsSlots.length > 1
+              ? `<button type="button" aria-label="Usuń slot" class="ams-remove-btn text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded transition">×</button>`
+              : ''}
+          </td>
+        `;
+
+        tr.querySelector('.ams-color-input').addEventListener('input', (e) => {
+          slot.color = e.target.value;
+        });
+
+        tr.querySelector('.ams-mat-select').addEventListener('change', (e) => {
+          slot.materialType = e.target.value;
+          const autoRate = getMaterialRateById(slot.materialType);
+          slot.pricePerKg = autoRate;
+          tr.querySelector('.ams-price-input').value = autoRate;
+          recalculate();
+        });
+
+        tr.querySelector('.ams-weight-input').addEventListener('input', (e) => {
+          slot.weightGrams = sanitizeNum(e.target.value, 0);
+          recalculate();
+        });
+
+        tr.querySelector('.ams-price-input').addEventListener('input', (e) => {
+          slot.pricePerKg = sanitizeNum(e.target.value, 0);
+          recalculate();
+        });
+
+        const removeBtn = tr.querySelector('.ams-remove-btn');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', () => {
+            state.amsSlots.splice(index, 1);
+            renderAmsSlotsTable();
+            recalculate();
+          });
+        }
+
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('ams-total-weight').textContent = `${totalWeight.toFixed(1).replace('.', ',')} g`;
+      document.getElementById('ams-total-cost').textContent = formatPLN(totalCost);
+    }
+
+    /**
+     * Synchronize All Form Controls from `state`
+     */
+    function syncUIFromState() {
+      document.getElementById('project-name').value = state.projectName;
+
+      // Toggle Single vs AMS Material Panel
+      const amsBtn = document.getElementById('toggle-ams-btn');
+      const amsLabel = document.getElementById('toggle-ams-label');
+      const singlePanel = document.getElementById('single-material-panel');
+      const amsPanel = document.getElementById('ams-panel');
+
+      if (state.amsMode) {
+        amsBtn.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-900 text-white border-slate-900 shadow-xs';
+        amsLabel.textContent = 'AMS Multi-Material: WŁĄCZONY';
+        singlePanel.classList.add('hidden');
+        amsPanel.classList.remove('hidden');
+        renderAmsSlotsTable();
+      } else {
+        amsBtn.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200';
+        amsLabel.textContent = 'Tryb wielokolorowy / AMS';
+        singlePanel.classList.remove('hidden');
+        amsPanel.classList.add('hidden');
+      }
+
+      const activeMat = state.materials.find((m) => m.id === state.selectedMaterialId) || state.materials[0];
+      document.getElementById('unit-price-label').textContent = `zł / ${activeMat.unit}`;
+      document.getElementById('unit-price-badge').textContent = `zł/${activeMat.unit}`;
+      document.getElementById('unit-mass-label').textContent = activeMat.massUnit;
+      document.getElementById('unit-mass-badge').textContent = activeMat.massUnit;
+
+      renderMaterialRateCards();
+      renderPrinterPresets();
+
+      document.getElementById('material-price').value = state.materialPrice;
+      document.getElementById('material-consumption').value = state.materialConsumption;
+      document.getElementById('print-hours').value = state.printHours;
+      document.getElementById('print-minutes').value = state.printMinutes;
+      document.getElementById('order-quantity').value = state.orderQuantity;
+
+      document.getElementById('printer-wattage').value = state.printerWattage;
+      document.getElementById('electricity-price').value = state.electricityPrice;
+      document.getElementById('printer-cost').value = state.printerCost;
+      document.getElementById('printer-lifespan').value = state.printerLifespan;
+      document.getElementById('maintenance-cost').value = state.maintenanceCost;
+
+      document.getElementById('prep-minutes').value = state.prepMinutes;
+      document.getElementById('post-minutes').value = state.postMinutes;
+      document.getElementById('hourly-rate').value = state.hourlyRate;
+      document.getElementById('extras-cost').value = state.extrasCost;
+
+      document.getElementById('failure-rate').value = state.failureRate;
+      document.getElementById('min-order-value').value = state.minOrderValue;
+      document.getElementById('markup-input').value = state.markup;
+      document.getElementById('markup-slider').value = Math.min(300, state.markup);
+      document.getElementById('quantity-discount').value = state.quantityDiscount;
+      document.getElementById('commission-rate').value = state.commissionRate;
+
+      document.querySelectorAll('.comm-preset-btn').forEach((btn) => {
+        const val = parseFloat(btn.dataset.comm);
+        const isSel = Math.abs(val - state.commissionRate) < 0.01;
+        btn.className = isSel
+          ? 'comm-preset-btn px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-900 text-white'
+          : 'comm-preset-btn px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200';
+      });
+
+      document.querySelectorAll('.vat-mode-btn').forEach((btn) => {
+        const isSel = btn.dataset.vat === state.vatMode;
+        btn.className = isSel
+          ? 'vat-mode-btn p-2.5 rounded-xl border text-left transition bg-slate-900 text-white border-slate-900'
+          : 'vat-mode-btn p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-left hover:bg-slate-100 transition';
+        const sub = btn.querySelector('div:last-child');
+        if (sub) {
+          sub.className = isSel ? 'text-[10px] text-orange-400 mt-0.5' : 'text-[10px] text-slate-500 mt-0.5';
+        }
+      });
+
+      document.getElementById('show-pdf-thumbnails-toggle').checked = Boolean(state.showPdfThumbnails);
+    }
+
+    /**
+     * =====================================================================
+     * CORE PRICING & PROFITABILITY CALCULATION ENGINE
+     * =====================================================================
+     */
+    function calculateCurrentPartMetrics() {
+      const qty = Math.max(1, Math.round(state.orderQuantity));
+      const printHoursPerUnit = state.printHours + state.printMinutes / 60;
+
+      // 1. Material Cost & Weight (Single vs AMS Multi-Material)
+      let costMaterial = 0;
+      let weightPerUnit = 0;
+      let materialSummaryText = '';
+      let colorSwatches = [];
+
+      if (state.amsMode) {
+        state.amsSlots.forEach((slot) => {
+          weightPerUnit += slot.weightGrams;
+          costMaterial += (slot.weightGrams / 1000) * slot.pricePerKg;
+          colorSwatches.push({
+            color: slot.color,
+            type: slot.materialType,
+            grams: slot.weightGrams,
+          });
+        });
+        const uniqueTypes = [...new Set(state.amsSlots.map((s) => s.materialType))];
+        materialSummaryText = `${uniqueTypes.join(' + ')} (${state.amsSlots.length} kol., ${weightPerUnit.toFixed(1)} g)`;
+      } else {
+        weightPerUnit = state.materialConsumption;
+        costMaterial = (state.materialConsumption / 1000) * state.materialPrice;
+        const activeMat = state.materials.find((m) => m.id === state.selectedMaterialId) || state.materials[0];
+        materialSummaryText = `${activeMat.name} (${weightPerUnit.toFixed(1)} ${activeMat.massUnit})`;
+      }
+
+      // 2. Energy & Machine Wear (1 unit)
+      const kwhPerUnit = (state.printerWattage / 1000) * printHoursPerUnit;
+      const costEnergy = kwhPerUnit * state.electricityPrice;
+      const depPerHour = state.printerLifespan > 0 ? state.printerCost / state.printerLifespan : 0;
+      const costMachine = (depPerHour + state.maintenanceCost) * printHoursPerUnit;
+
+      // 3. Waste / Failure Risk Buffer
+      const costRisk = (costMaterial + costEnergy + costMachine) * (state.failureRate / 100);
+
+      // 4. Labor (one-time prep amortized over series + per-unit post-processing)
+      const prepPerUnitMin = state.prepMinutes / qty;
+      const costLabor = ((prepPerUnitMin + state.postMinutes) / 60) * state.hourlyRate;
+
+      // 5. Extras & Accessories (1 unit)
+      const costExtras = state.extrasCost;
+
+      // 6. Break-Even Cost (1 unit)
+      const unitCost = costMaterial + costEnergy + costMachine + costRisk + costLabor + costExtras;
+
+      // 7. Markup & Quantity Discount
+      const markupMult = 1 + state.markup / 100;
+      const discountMult = Math.max(0.1, 1 - Math.min(90, state.quantityDiscount) / 100);
+      const targetNetRevenue = unitCost * markupMult * discountMult;
+
+      // 8. Platform Commission & VAT
+      const commRate = Math.min(75, Math.max(0, state.commissionRate)) / 100;
+      const vatRate = state.vatMode === '23' ? 0.23 : state.vatMode === '8' ? 0.08 : 0;
+
+      const denom = Math.max(0.05, 1 - commRate * (1 + vatRate));
+      let unitNet = targetNetRevenue / denom;
+      let unitGross = unitNet * (1 + vatRate);
+
+      // 9. Minimum Order / Item Value Protection
+      let minApplied = false;
+      if (state.minOrderValue > 0 && unitGross * qty < state.minOrderValue) {
+        minApplied = true;
+        unitGross = state.minOrderValue / qty;
+        unitNet = unitGross / (1 + vatRate);
+      }
+
+      const unitCommission = unitGross * commRate;
+      const unitVat = unitGross - unitNet;
+      const unitProfit = unitNet - unitCommission - unitCost;
+      const marginPercent = unitNet > 0 ? (unitProfit / unitNet) * 100 : 0;
+
+      return {
+        qty,
+        printHoursPerUnit,
+        totalPrintHours: printHoursPerUnit * qty,
+        weightPerUnit,
+        totalWeight: weightPerUnit * qty,
+        materialSummaryText,
+        colorSwatches,
+        costMaterial,
+        costEnergyAndMachine: costEnergy + costMachine + costRisk,
+        costLaborAndExtras: costLabor + costExtras,
+        unitCost,
+        totalCost: unitCost * qty,
+        unitCommission,
+        unitVat,
+        unitProfit,
+        totalProfit: unitProfit * qty,
+        unitNet,
+        unitGross,
+        totalNet: unitNet * qty,
+        totalGross: unitGross * qty,
+        marginPercent,
+        minApplied,
+      };
+    }
+
+    /**
+     * Render Interactive SVG Donut Chart
+     */
+    function renderDonutChart(calc) {
+      const slicesGroup = document.getElementById('donut-slices-group');
+      const legendContainer = document.getElementById('donut-legend');
+      const isNoVat = state.vatMode === 'novat' || state.vatMode === '0';
+
+      const segments = [
+        { label: 'Materiał', value: calc.costMaterial, color: '#0f172a' },
+        { label: 'Maszyna i prąd', value: calc.costEnergyAndMachine, color: '#3b82f6' },
+        { label: 'Praca i dodatki', value: calc.costLaborAndExtras, color: '#8b5cf6' },
+        { label: isNoVat ? 'Prowizja platformy' : 'Prowizja i VAT', value: calc.unitCommission + calc.unitVat, color: '#94a3b8' },
+        { label: 'Czysty zysk', value: Math.max(0, calc.unitProfit), color: '#10b981' },
+      ];
+
+      const totalVal = segments.reduce((sum, s) => sum + s.value, 0);
+      const radius = 58;
+      const circumference = 2 * Math.PI * radius;
+
+      slicesGroup.innerHTML = '';
+      legendContainer.innerHTML = '';
+
+      let offset = 0;
+
+      segments.forEach((seg, idx) => {
+        const share = totalVal > 0 ? seg.value / totalVal : 0;
+        const pct = share * 100;
+        const len = share * circumference;
+
+        if (len > 0.05) {
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', '80');
+          circle.setAttribute('cy', '80');
+          circle.setAttribute('r', String(radius));
+          circle.setAttribute('fill', 'none');
+          circle.setAttribute('stroke', seg.color);
+          circle.setAttribute('stroke-width', '17');
+          circle.setAttribute('stroke-dasharray', `${len} ${circumference}`);
+          circle.setAttribute('stroke-dashoffset', String(-offset));
+          circle.classList.add('donut-slice');
+          if (activeSliceIndex === idx) circle.classList.add('is-active');
+
+          circle.addEventListener('mouseenter', () => highlightChartSlice(idx, segments, calc));
+          circle.addEventListener('click', () => highlightChartSlice(idx, segments, calc));
+          circle.addEventListener('mouseleave', () => resetChartHighlight(calc));
+
+          slicesGroup.appendChild(circle);
+          offset += len;
+        }
+
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left hover:bg-slate-50 transition';
+        row.innerHTML = `
+          <span class="flex items-center gap-2 min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${seg.color}"></span>
+            <span class="truncate text-slate-700 font-medium">${seg.label}</span>
+          </span>
+          <span class="flex items-center gap-2 shrink-0 tabular-nums">
+            <span class="font-bold text-slate-900">${formatPLN(seg.value)}</span>
+            <span class="text-[11px] text-slate-400 w-10 text-right">${pct.toFixed(0)}%</span>
+          </span>
+        `;
+
+        row.addEventListener('mouseenter', () => highlightChartSlice(idx, segments, calc));
+        row.addEventListener('click', () => highlightChartSlice(idx, segments, calc));
+        row.addEventListener('mouseleave', () => resetChartHighlight(calc));
+        legendContainer.appendChild(row);
+      });
+
+      resetChartHighlight(calc);
+    }
+
+    function highlightChartSlice(idx, segments, calc) {
+      activeSliceIndex = idx;
+      const seg = segments[idx];
+      const total = segments.reduce((s, item) => s + item.value, 0);
+      const pct = total > 0 ? (seg.value / total) * 100 : 0;
+
+      document.getElementById('donut-center-label').textContent = seg.label;
+      document.getElementById('donut-center-value').textContent = formatPLN(seg.value);
+      document.getElementById('donut-center-percent').textContent = `${pct.toFixed(1).replace('.', ',')}%`;
+
+      document.querySelectorAll('#donut-slices-group .donut-slice').forEach((el, i) => {
+        el.classList.toggle('is-active', i === idx);
+      });
+    }
+
+    function resetChartHighlight(calc) {
+      activeSliceIndex = null;
+      document.getElementById('donut-center-label').textContent = 'Cena 1 szt.';
+      document.getElementById('donut-center-value').textContent = formatPLN(calc.unitGross);
+      document.getElementById('donut-center-percent').textContent = state.vatMode === 'novat' ? 'końcowa' : 'brutto';
+      document.querySelectorAll('#donut-slices-group .donut-slice').forEach((el) => el.classList.remove('is-active'));
+    }
+
+    /**
+     * Master UI Recalculation
+     */
+    function recalculate() {
+      const calc = calculateCurrentPartMetrics();
+      lastCalc = calc;
+
+      if (state.amsMode) {
+        renderAmsSlotsTable();
+      }
+
+      // Volume discount suggestion
+      const suggBox = document.getElementById('discount-suggestion');
+      let suggested = 0;
+      if (calc.qty >= 50) suggested = 20;
+      else if (calc.qty >= 20) suggested = 15;
+      else if (calc.qty >= 10) suggested = 10;
+      else if (calc.qty >= 5) suggested = 5;
+
+      if (suggested > 0 && Math.abs(state.quantityDiscount - suggested) > 0.1) {
+        suggBox.classList.remove('hidden');
+        document.getElementById('discount-suggestion-text').textContent = `Sugerowany rabat (${calc.qty} szt.): ${suggested}%`;
+        document.getElementById('apply-discount-suggestion').dataset.val = String(suggested);
+      } else {
+        suggBox.classList.add('hidden');
+      }
+
+      const isNoVat = state.vatMode === 'novat';
+
+      // KPI 1: Unit Price
+      document.getElementById('kpi-unit-gross').textContent = formatPLN(calc.unitGross);
+      document.getElementById('kpi-unit-gross-tag').classList.toggle('hidden', isNoVat);
+      document.getElementById('kpi-unit-net-row').classList.toggle('hidden', isNoVat);
+      document.getElementById('kpi-unit-net').textContent = formatPLN(calc.unitNet);
+      document.getElementById('kpi-min-badge').classList.toggle('hidden', !calc.minApplied);
+
+      // KPI 2: Series Total
+      document.getElementById('kpi-qty-badge').textContent = `${calc.qty} szt.`;
+      document.getElementById('kpi-total-gross').textContent = formatPLN(calc.totalGross);
+      document.getElementById('kpi-total-gross-tag').classList.toggle('hidden', isNoVat);
+      document.getElementById('kpi-total-net-row').classList.toggle('hidden', isNoVat);
+      document.getElementById('kpi-total-net').textContent = formatPLN(calc.totalNet);
+
+      // KPI 3: Total Cost
+      document.getElementById('kpi-total-cost').textContent = formatPLN(calc.totalCost);
+      document.getElementById('kpi-unit-cost').textContent = formatPLN(calc.unitCost);
+
+      // KPI 4: Pure Net Profit
+      const profitEl = document.getElementById('kpi-total-profit');
+      const profitCard = document.getElementById('kpi-profit-card');
+      const marginBadge = document.getElementById('kpi-margin-badge');
+      profitEl.textContent = formatPLN(calc.totalProfit);
+      document.getElementById('kpi-unit-profit').textContent = formatPLN(calc.unitProfit);
+      marginBadge.textContent = `Marża ${calc.marginPercent.toFixed(1).replace('.', ',')}%`;
+
+      if (calc.totalProfit < -0.01) {
+        profitEl.className = 'text-2xl font-extrabold tracking-tight text-rose-600';
+        profitCard.className = 'bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-rose-300';
+        marginBadge.className = 'px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800';
+      } else {
+        profitEl.className = 'text-2xl font-extrabold tracking-tight text-emerald-600';
+        profitCard.className = 'bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-emerald-200';
+        marginBadge.className = 'px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800';
+      }
+
+      // Chart badge & Mobile bar
+      document.getElementById('chart-meta-badge').textContent =
+        `${formatDuration(calc.totalPrintHours)} • ${Math.round(calc.totalWeight)} g`;
+      document.getElementById('mobile-bar-total').textContent = formatPLN(calc.totalGross);
+      document.getElementById('mobile-bar-profit').textContent = `${calc.totalProfit >= 0 ? '+' : ''}${formatPLN(calc.totalProfit)} zysku`;
+
+      renderDonutChart(calc);
+      updateTextOfferPreview();
+    }
+
+    /**
+     * =====================================================================
+     * MULTI-ITEM CLIENT QUOTE CART & A4 PDF EXPORT
+     * =====================================================================
+     */
+    function addCurrentItemToCart() {
+      if (!lastCalc) recalculate();
+      const calc = lastCalc;
+
+      const title = state.projectName.trim() || `Wydruk 3D #${quoteCart.length + 1}`;
+      quoteCart.push({
+        id: Date.now() + Math.random(),
+        title,
+        thumbnailDataUrl: currentThumbnailDataUrl || '',
+        materialSummary: calc.materialSummaryText,
+        colorSwatches: [...calc.colorSwatches],
+        weightPerUnit: calc.weightPerUnit,
+        printHoursPerUnit: calc.printHoursPerUnit,
+        qty: calc.qty,
+        unitNet: calc.unitNet,
+        unitGross: calc.unitGross,
+      });
+
+      renderQuoteCart();
+      showToast(`Dodano „${title}” (${calc.qty} szt.) do oferty klienta.`, 'success');
+    }
+
+    function renderQuoteCart() {
+      const emptyEl = document.getElementById('quote-cart-empty');
+      const listEl = document.getElementById('quote-cart-list');
+      const totalsEl = document.getElementById('quote-cart-totals');
+      const clearBtn = document.getElementById('clear-cart-btn');
+      const countBadge = document.getElementById('cart-count-badge');
+
+      countBadge.textContent = `${quoteCart.length} poz.`;
+
+      if (quoteCart.length === 0) {
+        emptyEl.classList.remove('hidden');
+        listEl.classList.add('hidden');
+        totalsEl.classList.add('hidden');
+        clearBtn.classList.add('hidden');
+        updateTextOfferPreview();
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      listEl.classList.remove('hidden');
+      totalsEl.classList.remove('hidden');
+      clearBtn.classList.remove('hidden');
+
+      listEl.innerHTML = '';
+      let sumNet = 0;
+      let sumGross = 0;
+
+      quoteCart.forEach((item, idx) => {
+        const lineNet = item.unitNet * item.qty;
+        const lineGross = item.unitGross * item.qty;
+        sumNet += lineNet;
+        sumGross += lineGross;
+
+        const row = document.createElement('div');
+        row.className = 'p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3';
+
+        const thumbHtml = item.thumbnailDataUrl
+          ? `<img src="${item.thumbnailDataUrl}" alt="${item.title}" class="w-12 h-12 rounded-lg bg-white border border-slate-200 object-contain p-0.5 shrink-0" />`
+          : `<div class="w-12 h-12 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 text-[10px] font-bold">3D</div>`;
+
+        const swatchesHtml = item.colorSwatches && item.colorSwatches.length > 0
+          ? `<div class="flex items-center gap-1 mt-1">${item.colorSwatches.map((s) => `<span class="w-2.5 h-2.5 rounded-full border border-slate-300" style="background:${s.color}" title="${s.type}: ${s.grams}g"></span>`).join('')}</div>`
+          : '';
+
+        row.innerHTML = `
+          ${thumbHtml}
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-bold text-slate-900 truncate">${idx + 1}. ${item.title}</div>
+            <div class="text-[11px] text-slate-500 truncate">${item.materialSummary}</div>
+            ${swatchesHtml}
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button type="button" class="cart-qty-dec w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100">−</button>
+            <input type="number" min="1" value="${item.qty}" aria-label="Ilość" class="cart-qty-inp w-10 text-center py-0.5 rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-900" />
+            <button type="button" class="cart-qty-inc w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100">+</button>
+          </div>
+          <div class="text-right shrink-0 min-w-[72px]">
+            <div class="text-xs font-extrabold text-slate-900 tabular-nums">${formatPLN(lineGross)}</div>
+            <button type="button" class="cart-del-btn text-[10px] font-semibold text-rose-500 hover:text-rose-700">Usuń</button>
+          </div>
+        `;
+
+        row.querySelector('.cart-qty-dec').addEventListener('click', () => {
+          item.qty = Math.max(1, item.qty - 1);
+          renderQuoteCart();
+        });
+        row.querySelector('.cart-qty-inc').addEventListener('click', () => {
+          item.qty += 1;
+          renderQuoteCart();
+        });
+        row.querySelector('.cart-qty-inp').addEventListener('input', (e) => {
+          item.qty = Math.max(1, Math.floor(sanitizeNum(e.target.value, 1)));
+          renderQuoteCart();
+        });
+        row.querySelector('.cart-del-btn').addEventListener('click', () => {
+          quoteCart.splice(idx, 1);
+          renderQuoteCart();
+        });
+
+        listEl.appendChild(row);
+      });
+
+      const isNoVat = state.vatMode === 'novat';
+      document.getElementById('cart-total-gross').textContent = formatPLN(sumGross);
+      const netSubEl = document.getElementById('cart-total-net-sub');
+      netSubEl.classList.toggle('hidden', isNoVat);
+      netSubEl.textContent = `Razem netto: ${formatPLN(sumNet)}`;
+
+      updateTextOfferPreview();
+    }
+
+    /**
+     * Get Effective Items List (Cart items if non-empty, otherwise current active item)
+     */
+    function getOfferItemsForExport() {
+      if (quoteCart.length > 0) return quoteCart;
+      if (!lastCalc) recalculate();
+      return [{
+        title: state.projectName.trim() || 'Wydruk 3D na zamówienie',
+        thumbnailDataUrl: currentThumbnailDataUrl || '',
+        materialSummary: lastCalc.materialSummaryText,
+        colorSwatches: [...lastCalc.colorSwatches],
+        weightPerUnit: lastCalc.weightPerUnit,
+        printHoursPerUnit: lastCalc.printHoursPerUnit,
+        qty: lastCalc.qty,
+        unitNet: lastCalc.unitNet,
+        unitGross: lastCalc.unitGross,
+      }];
+    }
+
+    /**
+     * Update Plain Text Quote (for e-mail / Allegro / OLX)
+     */
+    function updateTextOfferPreview() {
+      const items = getOfferItemsForExport();
+      const isNoVat = state.vatMode === 'novat';
+      const brandName = (brandState.brandName || '').trim() || 'PrintCalc 3D Studio';
+      const offerNum = document.getElementById('offer-number-input').value.trim();
+      const delivery = document.getElementById('offer-delivery-input').value.trim();
+      const notes = document.getElementById('offer-notes-input').value.trim();
+      const contact = (brandState.brandContact || '').trim();
+
+      let sumNet = 0;
+      let sumGross = 0;
+
+      const lines = items.map((it, idx) => {
+        const lNet = it.unitNet * it.qty;
+        const lGross = it.unitGross * it.qty;
+        sumNet += lNet;
+        sumGross += lGross;
+        const priceStr = isNoVat
+          ? `${formatPLN(it.unitGross)}/szt. → ${formatPLN(lGross)}`
+          : `${formatPLN(it.unitNet)} netto (${formatPLN(it.unitGross)} brutto)/szt. → ${formatPLN(lGross)} brutto`;
+        return `${idx + 1}. ${it.title} — ${it.materialSummary} | Ilość: ${it.qty} szt. | ${priceStr}`;
+      });
+
+      const totalBlock = isNoVat
+        ? `RAZEM DO ZAPŁATY: ${formatPLN(sumGross)} (sprzedaż zwolniona z VAT)`
+        : `RAZEM NETTO: ${formatPLN(sumNet)}\nRAZEM BRUTTO (z VAT ${state.vatMode}%): ${formatPLN(sumGross)}`;
+
+      const text =
+`${brandName.toUpperCase()} — OFERTA WYCENY DRUKU 3D (${offerNum})
+
+Pozycje zamówienia:
+${lines.join('\n')}
+
+${totalBlock}
+
+Termin realizacji: ${delivery}
+${notes}${contact ? `\nKontakt: ${contact}` : ''}`;
+
+      document.getElementById('client-quote-text').value = text;
+    }
+
+    /**
+     * Prepare & Trigger Clean A4 PDF Print
+     */
+    function printA4Offer() {
+      const items = getOfferItemsForExport();
+      const isNoVat = state.vatMode === 'novat';
+      const showThumbs = document.getElementById('show-pdf-thumbnails-toggle').checked;
+
+      // Header & Metadata
+      applyBrandUI();
+      document.getElementById('print-offer-number').textContent = `Nr: ${document.getElementById('offer-number-input').value.trim() || 'OF/2026/001'}`;
+      document.getElementById('print-offer-date').textContent = `Data wystawienia: ${new Date().toLocaleDateString('pl-PL')}`;
+      document.getElementById('print-client-info').textContent = document.getElementById('offer-client-input').value.trim() || 'Klient indywidualny / firmowy';
+      document.getElementById('print-delivery-time').textContent = document.getElementById('offer-delivery-input').value.trim() || '3–5 dni roboczych';
+
+      const taxStatusEl = document.getElementById('print-tax-status');
+      if (isNoVat) {
+        taxStatusEl.textContent = 'Sprzedaż zwolniona z podatku VAT';
+      } else if (state.vatMode === '0') {
+        taxStatusEl.textContent = 'Stawka VAT 0%';
+      } else {
+        taxStatusEl.textContent = `Ceny brutto zawierają podatek VAT ${state.vatMode}%`;
+      }
+
+      // Column headers
+      document.getElementById('print-thumb-col-header').classList.toggle('hidden', !showThumbs);
+      document.getElementById('print-unit-price-header').textContent = isNoVat ? 'Cena jedn.' : 'Cena jedn. brutto';
+      document.getElementById('print-total-price-header').textContent = isNoVat ? 'Wartość' : 'Wartość brutto';
+
+      // Table rows
+      const tbody = document.getElementById('print-items-tbody');
+      tbody.innerHTML = '';
+
+      let sumNet = 0;
+      let sumGross = 0;
+
+      items.forEach((it, idx) => {
+        const lineNet = it.unitNet * it.qty;
+        const lineGross = it.unitGross * it.qty;
+        sumNet += lineNet;
+        sumGross += lineGross;
+
+        const tr = document.createElement('tr');
+        tr.className = 'print-no-break';
+
+        const thumbCell = showThumbs
+          ? `<td class="py-2.5 px-2 align-middle">
+              ${it.thumbnailDataUrl
+                ? `<img src="${it.thumbnailDataUrl}" alt="" class="w-12 h-12 rounded-lg border border-slate-200 object-contain p-0.5 bg-white" />`
+                : `<div class="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] font-bold text-slate-400">3D</div>`}
+            </td>`
+          : '';
+
+        const swatches = it.colorSwatches && it.colorSwatches.length > 0
+          ? `<div class="flex items-center gap-1.5 mt-1">${it.colorSwatches.map((s) => `<span class="inline-flex items-center gap-1 text-[10px] text-slate-600"><span class="w-2.5 h-2.5 rounded-full inline-block border border-slate-400" style="background:${s.color}"></span>${s.type}</span>`).join('')}</div>`
+          : '';
+
+        const unitCellHtml = isNoVat
+          ? `<div class="font-bold text-slate-900">${formatPLN(it.unitGross)}</div>`
+          : `<div class="font-bold text-slate-900">${formatPLN(it.unitGross)}</div><div class="text-[10px] text-slate-500">netto: ${formatPLN(it.unitNet)}</div>`;
+
+        const totalCellHtml = isNoVat
+          ? `<div class="font-extrabold text-slate-900">${formatPLN(lineGross)}</div>`
+          : `<div class="font-extrabold text-slate-900">${formatPLN(lineGross)}</div><div class="text-[10px] text-slate-500">netto: ${formatPLN(lineNet)}</div>`;
+
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-semibold text-slate-500 align-middle">${idx + 1}.</td>
+          ${thumbCell}
+          <td class="py-2.5 px-3 align-middle">
+            <div class="font-bold text-slate-900 text-xs">${it.title}</div>
+            <div class="text-[11px] text-slate-600 mt-0.5">Materiał: ${it.materialSummary}</div>
+            ${swatches}
+          </td>
+          <td class="py-2.5 px-3 text-center font-bold text-slate-900 align-middle">${it.qty} szt.</td>
+          <td class="py-2.5 px-3 text-right align-middle tabular-nums">${unitCellHtml}</td>
+          <td class="py-2.5 px-3 text-right align-middle tabular-nums">${totalCellHtml}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Totals Box
+      document.getElementById('print-summary-net-row').classList.toggle('hidden', isNoVat);
+      document.getElementById('print-summary-vat-row').classList.toggle('hidden', isNoVat);
+      document.getElementById('print-summary-net').textContent = formatPLN(sumNet);
+      document.getElementById('print-summary-vat').textContent = formatPLN(sumGross - sumNet);
+      document.getElementById('print-summary-final-label').textContent = isNoVat ? 'DO ZAPŁATY:' : 'DO ZAPŁATY BRUTTO:';
+      document.getElementById('print-summary-gross').textContent = formatPLN(sumGross);
+
+      const notesVal = document.getElementById('offer-notes-input').value.trim();
+      document.getElementById('print-notes-box').classList.toggle('hidden', !notesVal);
+      document.getElementById('print-notes-text').textContent = notesVal;
+
+      window.print();
+    }
+
+    /**
+     * =====================================================================
+     * SETTINGS PERSISTENCE: LOCALSTORAGE + .JSON EXPORT / IMPORT
+     * =====================================================================
+     */
+    function saveSettingsToLocalStorage() {
+      try {
+        const snapshot = {
+          selectedMaterialId: state.selectedMaterialId,
+          materials: state.materials,
+          materialPrice: state.materialPrice,
+          printerPresetId: state.printerPresetId,
+          printerWattage: state.printerWattage,
+          electricityPrice: state.electricityPrice,
+          printerCost: state.printerCost,
+          printerLifespan: state.printerLifespan,
+          maintenanceCost: state.maintenanceCost,
+          prepMinutes: state.prepMinutes,
+          postMinutes: state.postMinutes,
+          hourlyRate: state.hourlyRate,
+          extrasCost: state.extrasCost,
+          failureRate: state.failureRate,
+          minOrderValue: state.minOrderValue,
+          markup: state.markup,
+          commissionRate: state.commissionRate,
+          vatMode: state.vatMode,
+          showPdfThumbnails: state.showPdfThumbnails,
+        };
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(snapshot));
+        showToast('Zapisano Twoje stawki i ustawienia jako domyślne!', 'success');
+      } catch (err) {
+        showToast('Nie udało się zapisać ustawień w pamięci przeglądarki.', 'error');
+      }
+    }
+
+    function exportSettingsAsJson() {
+      const payload = {
+        app: 'PrintCalc 3D PRO',
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        brand: brandState,
+        settings: {
+          selectedMaterialId: state.selectedMaterialId,
+          materials: state.materials,
+          materialPrice: state.materialPrice,
+          printerPresetId: state.printerPresetId,
+          printerWattage: state.printerWattage,
+          electricityPrice: state.electricityPrice,
+          printerCost: state.printerCost,
+          printerLifespan: state.printerLifespan,
+          maintenanceCost: state.maintenanceCost,
+          prepMinutes: state.prepMinutes,
+          postMinutes: state.postMinutes,
+          hourlyRate: state.hourlyRate,
+          extrasCost: state.extrasCost,
+          failureRate: state.failureRate,
+          minOrderValue: state.minOrderValue,
+          markup: state.markup,
+          commissionRate: state.commissionRate,
+          vatMode: state.vatMode,
+          showPdfThumbnails: state.showPdfThumbnails,
+        }
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `printcalc3d-ustawienia-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Wyeksportowano plik ustawień (.json).', 'success');
+    }
+
+    async function importSettingsFromJsonFile(file) {
+      if (!file) return;
+      try {
+        const raw = await file.text();
+        const parsed = JSON.parse(raw);
+        if (parsed.settings) {
+          state = { ...state, ...parsed.settings };
+          localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(parsed.settings));
+        }
+        if (parsed.brand) {
+          brandState = { ...DEFAULT_BRAND, ...parsed.brand };
+          localStorage.setItem(STORAGE_KEY_BRAND, JSON.stringify(brandState));
+        }
+        applyBrandUI();
+        syncUIFromState();
+        recalculate();
+        showToast('Zaimportowano konfigurację stawek i logo z pliku .json!', 'success');
+      } catch (err) {
+        showToast('Nieprawidłowy plik konfiguracyjny .json.', 'error');
+      }
+    }
+
+    /**
+     * =====================================================================
+     * EVENT LISTENERS BINDING
+     * =====================================================================
+     */
+    function bindEvents() {
+      // Brand Modal
+      const brandModal = document.getElementById('brand-modal');
+      const openBrand = () => {
+        document.getElementById('brand-name-input').value = brandState.brandName || '';
+        document.getElementById('brand-tagline-input').value = brandState.brandTagline || '';
+        document.getElementById('brand-contact-input').value = brandState.brandContact || '';
+        document.getElementById('brand-logo-url').value = brandState.logoDataUrl && !brandState.logoDataUrl.startsWith('data:') ? brandState.logoDataUrl : '';
+        renderBrandLogo(document.getElementById('modal-logo-preview'), 'w-full h-full object-contain p-1.5');
+        brandModal.classList.remove('hidden');
+        brandModal.classList.add('flex');
+      };
+      const closeBrand = () => {
+        brandModal.classList.add('hidden');
+        brandModal.classList.remove('flex');
+      };
+
+      document.getElementById('open-brand-modal-btn').addEventListener('click', openBrand);
+      document.getElementById('header-logo-trigger').addEventListener('click', openBrand);
+      document.getElementById('close-brand-modal-x').addEventListener('click', closeBrand);
+      document.getElementById('cancel-brand-btn').addEventListener('click', closeBrand);
+
+      document.getElementById('brand-logo-file').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          const dataUrl = await compressImageFileToDataUrl(file, 260, 'image/png');
+          brandState.logoDataUrl = dataUrl;
+          document.getElementById('brand-logo-url').value = '';
+          renderBrandLogo(document.getElementById('modal-logo-preview'), 'w-full h-full object-contain p-1.5');
+          showToast(`Załadowano logo: ${file.name}`, 'success');
+        } catch (err) {
+          showToast('Nie udało się wczytać pliku graficznego.', 'error');
+        }
+      });
+
+      document.getElementById('brand-logo-url').addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        if (val) {
+          brandState.logoDataUrl = val;
+          renderBrandLogo(document.getElementById('modal-logo-preview'), 'w-full h-full object-contain p-1.5');
+        }
+      });
+
+      document.getElementById('remove-brand-logo-btn').addEventListener('click', () => {
+        brandState.logoDataUrl = '';
+        document.getElementById('brand-logo-url').value = '';
+        document.getElementById('brand-logo-file').value = '';
+        renderBrandLogo(document.getElementById('modal-logo-preview'), 'w-full h-full object-contain p-1.5');
+        showToast('Usunięto logo.', 'info');
+      });
+
+      document.getElementById('save-brand-btn').addEventListener('click', () => {
+        brandState.brandName = document.getElementById('brand-name-input').value.trim();
+        brandState.brandTagline = document.getElementById('brand-tagline-input').value.trim();
+        brandState.brandContact = document.getElementById('brand-contact-input').value.trim();
+        const typedUrl = document.getElementById('brand-logo-url').value.trim();
+        if (typedUrl) brandState.logoDataUrl = typedUrl;
+
+        try {
+          localStorage.setItem(STORAGE_KEY_BRAND, JSON.stringify(brandState));
+        } catch (e) {
+          showToast('Logo jest zbyt duże do trwałego zapisu w localStorage — użyj mniejszego pliku lub URL.', 'info');
+        }
+        applyBrandUI();
+        updateTextOfferPreview();
+        closeBrand();
+        showToast('Zapisano Twoje logo i dane firmy!', 'success');
+      });
+
+      // Settings Toolbar: Save Defaults, Export JSON, Import JSON, Factory Reset
+      document.getElementById('save-defaults-btn').addEventListener('click', saveSettingsToLocalStorage);
+      document.getElementById('export-json-btn').addEventListener('click', exportSettingsAsJson);
+      document.getElementById('import-json-input').addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          importSettingsFromJsonFile(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+
+      const resetModal = document.getElementById('reset-modal');
+      document.getElementById('reset-factory-btn').addEventListener('click', () => {
+        resetModal.classList.remove('hidden');
+        resetModal.classList.add('flex');
+      });
+      document.getElementById('cancel-reset-btn').addEventListener('click', () => {
+        resetModal.classList.add('hidden');
+        resetModal.classList.remove('flex');
+      });
+      document.getElementById('confirm-reset-btn').addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY_SETTINGS);
+        state = JSON.parse(JSON.stringify(FACTORY_STATE));
+        syncUIFromState();
+        recalculate();
+        resetModal.classList.add('hidden');
+        resetModal.classList.remove('flex');
+        showToast('Przywrócono ustawienia fabryczne.', 'info');
+      });
+
+      // Slicer File Drag & Drop (.3mf, .gcode.3mf, .gcode, .gco, .nc)
+      const dropzone = document.getElementById('slicer-dropzone');
+      const fileInput = document.getElementById('slicer-file-input');
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+      });
+
+      ['dragenter', 'dragover'].forEach((evt) => {
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('dropzone-active');
+        });
+      });
+      ['dragleave', 'drop'].forEach((evt) => {
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('dropzone-active');
+        });
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files) {
+          handleSlicerFilesUpload(e.dataTransfer.files);
+        }
+      });
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files) {
+          handleSlicerFilesUpload(e.target.files);
+          e.target.value = '';
+        }
+      });
+
+      document.getElementById('clear-imported-btn').addEventListener('click', () => {
+        importedPlates = [];
+        activePlateIndex = 0;
+        currentThumbnailDataUrl = '';
+        renderImportedModelCard(null);
+      });
+
+      // Batch Add All Plates from .3mf to Offer Cart
+      document.getElementById('add-all-plates-to-quote-btn').addEventListener('click', () => {
+        if (importedPlates.length === 0) return;
+        let added = 0;
+        importedPlates.forEach((plate) => {
+          applyImportedPlateToCalculator(plate);
+          if (lastCalc) {
+            quoteCart.push({
+              id: Date.now() + Math.random(),
+              title: plate.plateName || cleanTitleFromFilename(plate.fileName),
+              thumbnailDataUrl: plate.thumbnailDataUrl || '',
+              materialSummary: lastCalc.materialSummaryText,
+              colorSwatches: [...lastCalc.colorSwatches],
+              weightPerUnit: lastCalc.weightPerUnit,
+              printHoursPerUnit: lastCalc.printHoursPerUnit,
+              qty: 1,
+              unitNet: lastCalc.unitNet,
+              unitGross: lastCalc.unitGross,
+            });
+            added += 1;
+          }
+        });
+        renderQuoteCart();
+        showToast(`Dodano wszystkie ${added} płyty robocze do oferty klienta!`, 'success');
+      });
+
+      // Manual Thumbnail Upload for Custom Parts
+      document.getElementById('manual-thumb-input').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          currentThumbnailDataUrl = await compressImageFileToDataUrl(file, 260, 'image/jpeg');
+          document.getElementById('manual-thumb-btn-label').textContent = 'Zdjęcie dodane ✓';
+          renderImportedModelCard({
+            plateName: state.projectName.trim() || 'Własny detal 3D',
+            fileName: file.name,
+            slicer: 'Zdjęcie własne',
+            timeSeconds: (state.printHours * 3600) + (state.printMinutes * 60),
+            weightGrams: state.materialConsumption,
+            filaments: [],
+            thumbnailDataUrl: currentThumbnailDataUrl,
+          });
+          showToast('Dodano zdjęcie podglądowe detalu.', 'success');
+        } catch (err) {
+          showToast('Błąd wczytywania zdjęcia.', 'error');
+        }
+      });
+
+      // AMS Multi-Material Toggle & Add Slot
+      document.getElementById('toggle-ams-btn').addEventListener('click', () => {
+        state.amsMode = !state.amsMode;
+        syncUIFromState();
+        recalculate();
+      });
+
+      document.getElementById('add-ams-slot-btn').addEventListener('click', () => {
+        const nextNum = state.amsSlots.length + 1;
+        const palette = ['#f97316', '#0f172a', '#06b6d4', '#10b981', '#eab308', '#ec4899'];
+        state.amsSlots.push({
+          id: nextNum,
+          color: palette[(nextNum - 1) % palette.length],
+          materialType: 'PLA',
+          weightGrams: 10,
+          pricePerKg: getMaterialRateById('PLA'),
+        });
+        renderAmsSlotsTable();
+        recalculate();
+      });
+
+      // Project Name Input
+      document.getElementById('project-name').addEventListener('input', (e) => {
+        state.projectName = e.target.value;
+        updateTextOfferPreview();
+      });
+
+      // Numeric Inputs Binding
+      const numFields = [
+        { id: 'material-price', key: 'materialPrice', min: 0 },
+        { id: 'material-consumption', key: 'materialConsumption', min: 0 },
+        { id: 'print-hours', key: 'printHours', min: 0, isInt: true },
+        { id: 'print-minutes', key: 'printMinutes', min: 0, max: 59, isInt: true },
+        { id: 'order-quantity', key: 'orderQuantity', min: 1, isInt: true },
+        { id: 'printer-wattage', key: 'printerWattage', min: 0 },
+        { id: 'electricity-price', key: 'electricityPrice', min: 0 },
+        { id: 'printer-cost', key: 'printerCost', min: 0 },
+        { id: 'printer-lifespan', key: 'printerLifespan', min: 1 },
+        { id: 'maintenance-cost', key: 'maintenanceCost', min: 0 },
+        { id: 'prep-minutes', key: 'prepMinutes', min: 0 },
+        { id: 'post-minutes', key: 'postMinutes', min: 0 },
+        { id: 'hourly-rate', key: 'hourlyRate', min: 0 },
+        { id: 'extras-cost', key: 'extrasCost', min: 0 },
+        { id: 'failure-rate', key: 'failureRate', min: 0, max: 200 },
+        { id: 'min-order-value', key: 'minOrderValue', min: 0 },
+        { id: 'quantity-discount', key: 'quantityDiscount', min: 0, max: 90 },
+        { id: 'commission-rate', key: 'commissionRate', min: 0, max: 75 },
+      ];
+
+      numFields.forEach(({ id, key, min = 0, max = Infinity, isInt = false }) => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', (e) => {
+          if (e.target.value === '') {
+            state[key] = min;
+            recalculate();
+            return;
+          }
+          let val = sanitizeNum(e.target.value, min);
+          if (isInt) val = Math.floor(val);
+          if (val < min) val = min;
+          if (val > max) val = max;
+          state[key] = val;
+          recalculate();
+        });
+        el.addEventListener('blur', (e) => { e.target.value = state[key]; });
+      });
+
+      // Quantity +/- Buttons
+      document.getElementById('qty-minus').addEventListener('click', () => {
+        state.orderQuantity = Math.max(1, state.orderQuantity - 1);
+        document.getElementById('order-quantity').value = state.orderQuantity;
+        recalculate();
+      });
+      document.getElementById('qty-plus').addEventListener('click', () => {
+        state.orderQuantity += 1;
+        document.getElementById('order-quantity').value = state.orderQuantity;
+        recalculate();
+      });
+
+      // Quick Extras Buttons (NFC, Magnet, Insert, Keyring, Box)
+      document.querySelectorAll('.quick-extra-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const addVal = parseFloat(btn.dataset.addExtra || '0');
+          state.extrasCost = Math.round((state.extrasCost + addVal) * 100) / 100;
+          document.getElementById('extras-cost').value = state.extrasCost;
+          recalculate();
+        });
+      });
+      document.getElementById('clear-extras-btn').addEventListener('click', () => {
+        state.extrasCost = 0;
+        document.getElementById('extras-cost').value = 0;
+        recalculate();
+      });
+
+      // Markup Slider & Numeric Input
+      const markupSlider = document.getElementById('markup-slider');
+      const markupInput = document.getElementById('markup-input');
+      markupSlider.addEventListener('input', (e) => {
+        state.markup = sanitizeNum(e.target.value, 0);
+        markupInput.value = state.markup;
+        recalculate();
+      });
+      markupInput.addEventListener('input', (e) => {
+        state.markup = e.target.value === '' ? 0 : sanitizeNum(e.target.value, 0);
+        markupSlider.value = Math.min(300, state.markup);
+        recalculate();
+      });
+
+      // Discount Suggestion
+      document.getElementById('apply-discount-suggestion').addEventListener('click', (e) => {
+        state.quantityDiscount = parseFloat(e.target.dataset.val || '0');
+        document.getElementById('quantity-discount').value = state.quantityDiscount;
+        recalculate();
+      });
+
+      // Commission Presets
+      document.querySelectorAll('.comm-preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.commissionRate = parseFloat(btn.dataset.comm || '0');
+          syncUIFromState();
+          recalculate();
+        });
+      });
+
+      // VAT Mode Selector (23%, 8%, 0%, Bez VAT)
+      document.querySelectorAll('.vat-mode-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.vatMode = btn.dataset.vat;
+          syncUIFromState();
+          recalculate();
+          renderQuoteCart();
+        });
+      });
+
+      // Quote Cart & PDF Actions
+      document.getElementById('add-to-quote-cart-btn').addEventListener('click', addCurrentItemToCart);
+      document.getElementById('clear-cart-btn').addEventListener('click', () => {
+        quoteCart = [];
+        renderQuoteCart();
+        showToast('Wyczyszczono koszyk oferty.', 'info');
+      });
+
+      ['offer-number-input', 'offer-delivery-input', 'offer-client-input', 'offer-notes-input'].forEach((id) => {
+        document.getElementById(id).addEventListener('input', updateTextOfferPreview);
+      });
+
+      document.getElementById('show-pdf-thumbnails-toggle').addEventListener('change', (e) => {
+        state.showPdfThumbnails = e.target.checked;
+      });
+
+      document.getElementById('print-pdf-btn').addEventListener('click', printA4Offer);
+
+      document.getElementById('copy-quote-btn').addEventListener('click', () => {
+        const textarea = document.getElementById('client-quote-text');
+        const detailsEl = textarea.closest('details');
+        const wasClosed = detailsEl && !detailsEl.open;
+        if (wasClosed) detailsEl.open = true;
+
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+
+        if (window.getSelection) window.getSelection().removeAllRanges();
+        if (wasClosed) detailsEl.open = false;
+
+        if (ok) {
+          const lbl = document.getElementById('copy-quote-label');
+          lbl.textContent = 'Skopiowano ofertę!';
+          showToast('Skopiowano ofertę tekstową do schowka!', 'success');
+          setTimeout(() => { lbl.textContent = 'Kopiuj ofertę tekstową'; }, 2200);
+        } else {
+          showToast('Rozwinięto podgląd oferty — skopiuj tekst skrótem Ctrl+C.', 'info');
+        }
+      });
+
+      // Mobile Scroll & Tooltips
+      document.getElementById('mobile-scroll-results').addEventListener('click', () => {
+        document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      document.querySelectorAll('.tooltip-trigger').forEach((tr) => {
+        tr.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const grp = tr.closest('.tooltip-group');
+          const active = grp.classList.contains('active');
+          document.querySelectorAll('.tooltip-group.active').forEach((g) => g.classList.remove('active'));
+          if (!active) grp.classList.add('active');
+        });
+      });
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.tooltip-group.active').forEach((g) => g.classList.remove('active'));
+      });
+    }
+
+    /**
+     * Initialize App on Load
+     */
+    function initApp() {
+      // Auto-generate current Offer Number
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      document.getElementById('offer-number-input').value = `OF/${yyyy}/${mm}/001`;
+
+      // Load saved Brand & Logo
+      try {
+        const savedBrand = localStorage.getItem(STORAGE_KEY_BRAND);
+        if (savedBrand) brandState = { ...DEFAULT_BRAND, ...JSON.parse(savedBrand) };
+      } catch (e) {
+        brandState = { ...DEFAULT_BRAND };
+      }
+
+      // Load saved Settings
+      try {
+        const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          state = { ...state, ...parsed };
+        }
+      } catch (e) {
+        state = JSON.parse(JSON.stringify(FACTORY_STATE));
+      }
+
+      applyBrandUI();
+      syncUIFromState();
+      bindEvents();
+      recalculate();
+      renderQuoteCart();
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
+  </script>
+</body>
+</html>
